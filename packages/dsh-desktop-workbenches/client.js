@@ -848,7 +848,7 @@ window.__ModuleLoader__.load({
       const bridge = globalThis.dshDesktop
       const restart = async () => {
         setRestarting(true)
-        try { await bridge.restartHarness() } catch (failure) { setRestarting(false); service.report(failure) }
+        try { await bridge.restartHarness('workbenches: install restart button') } catch (failure) { setRestarting(false); service.report(failure) }
       }
       if (restartNeeded && !error) return h('div', { className: 'dshWbNotice', role: 'status' }, '工作台安装变更需要重启 Harness 后生效。已有会话和数据不受影响。 ',
         typeof bridge?.restartHarness === 'function'

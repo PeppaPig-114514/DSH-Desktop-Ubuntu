@@ -181,7 +181,7 @@ window.__ModuleLoader__.load({
       const restartHarness = async () => {
         setBusy(true); setError('')
         try {
-          const result = await globalThis.dshDesktop.restartHarness()
+          const result = await globalThis.dshDesktop.restartHarness('market installer: built-in image generation restart button')
           if (!result.ok) setError('builtInImageFailed')
         } catch { setError('builtInImageFailed') }
         finally { setBusy(false) }
@@ -365,7 +365,7 @@ window.__ModuleLoader__.load({
         setRestarting(true)
         setError(undefined)
         try {
-          await bridge.restartHarness()
+          await bridge.restartHarness('market installer: market management restart button')
         } catch (failure) {
           setRestarting(false)
           setError(failure instanceof Error ? failure.message : String(failure))
@@ -597,7 +597,7 @@ window.__ModuleLoader__.load({
         setRestarting(true)
         setError(undefined)
         try {
-          await bridge.restartHarness()
+          await bridge.restartHarness('market installer: install restart button')
         } catch (failure) {
           setRestarting(false)
           setError(failure instanceof Error ? failure.message : String(failure))

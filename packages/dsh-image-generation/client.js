@@ -186,7 +186,7 @@ window.__ModuleLoader__.load({
       const restartHost = async () => {
         setHostBusy(true); setHostError(false)
         try {
-          const result = await globalThis.dshDesktop.restartHarness()
+          const result = await globalThis.dshDesktop.restartHarness('image generation: host restart button')
           if (!result.ok) setHostError(true)
         } catch { setHostError(true) }
         finally { setHostBusy(false) }

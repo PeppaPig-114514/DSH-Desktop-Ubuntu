@@ -32,6 +32,7 @@ import {
   prewarmShellEnvironment
 } from './runtime/harness-runtime'
 import { launchDisclaimedUtilityProcess } from './runtime/disclaimed-utility-process'
+import { formatHarnessLaunchNote, type HarnessLaunchSource } from './runtime/launch-reason'
 import {
   installProfileDependenciesWithDsh,
   removeProfilePluginWithDsh
@@ -1002,7 +1003,7 @@ function restoreMainWindow(): void {
   if (snapshot?.phase === 'ready' && snapshot.url) {
     void openHarness(snapshot.url, 'user').catch(showUnexpectedError)
   } else if (snapshot?.phase === 'idle') {
-    void launchHarness().catch(showUnexpectedError)
+    void launchHarness('window-restore').catch(showUnexpectedError)
   }
 }
 
@@ -1441,12 +1442,13 @@ async function enterMigrationSafeRecovery(
   })
 }
 
-function launchHarness(): Promise<void> {
+function launchHarness(source: HarnessLaunchSource, reason?: unknown): Promise<void> {
   if (harnessLaunchOperation) return harnessLaunchOperation
 
   harnessLaunchOperation = (async () => {
     safeModeVisible = false
     runtime.beginLaunch('web profile')
+    runtime.note(formatHarnessLaunchNote(source, reason))
     const dshHome = join(app.getPath('userData'), 'harness')
     await showSplash()
     runtime.note('[desktop] splash shown')
@@ -1572,12 +1574,13 @@ function launchHarness(): Promise<void> {
   return harnessLaunchOperation
 }
 
-function launchSafeHarness(): Promise<void> {
+function launchSafeHarness(source: HarnessLaunchSource, reason?: unknown): Promise<void> {
   if (harnessLaunchOperation) return harnessLaunchOperation
 
   harnessLaunchOperation = (async () => {
     safeModeVisible = true
     runtime.beginLaunch('safe mode')
+    runtime.note(formatHarnessLaunchNote(source, reason))
     const dshHome = join(app.getPath('userData'), 'harness')
     await refreshMigrationRecoveryLock(dshHome)
     await showSplash()
@@ -1672,13 +1675,13 @@ function reloadHarnessWindow(): void {
   if (!shouldLoadHarnessUrl(mainWindow.webContents.getURL(), url)) mainWindow.webContents.reload()
 }
 
-function restartHarness(): Promise<void> {
+function restartHarness(source: HarnessLaunchSource, reason?: unknown): Promise<void> {
   if (failureRecoveryVisible) resolvePluginRecoveryAction('restart')
   if (safeModeVisible) {
     resolveSafeModeAction({ type: 'agent' })
-    return launchSafeHarness()
+    return launchSafeHarness(source, reason)
   }
-  return launchHarness()
+  return launchHarness(source, reason)
 }
 
 /** Drop the market's generation pointer, in the shape the caller reports on. */
@@ -1739,7 +1742,7 @@ async function uninstallMarketAndRestart(): Promise<{ ok: boolean }> {
   await showSplash()
   await runtime.stop()
   const result = await removeMarket(dshHome)
-  await launchHarness()
+  await launchHarness('market-uninstall')
   if (!result.ok) {
     throw new Error(result.detail ?? 'Plugin market removal failed.')
   }
@@ -1760,7 +1763,7 @@ function registerHarnessHandlers(): void {
   })
 
   ipcMain.removeHandler('harness:restart')
-  ipcMain.handle('harness:restart', async (event) => {
+  ipcMain.handle('harness:restart', async (event, reason?: unknown) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
       throw new Error('Harness restart is only available from the DSH Desktop window.')
     }
@@ -1768,7 +1771,7 @@ function registerHarnessHandlers(): void {
       throw new Error('Harness is not ready to restart.')
     }
 
-    await restartHarness()
+    await restartHarness('frontend-bridge', reason)
     return { ok: runtime.snapshot().phase === 'ready' }
   })
 
@@ -1959,7 +1962,7 @@ async function executeDesktopMenuCommand(command: DesktopMenuCommand): Promise<n
       await showMobilePairing()
       break
     case 'restart-harness':
-      await restartHarness()
+      await restartHarness('menu', command)
       break
     case 'safe-mode':
       void showSafeMode().catch(showUnexpectedError)
@@ -2128,7 +2131,7 @@ async function showPluginRecovery(options?: {
     waitForRendererEvidence = false
     rendererPluginFailureLogs = []
     takePendingFrontendPluginRecovery()
-    await launchHarness()
+    await launchHarness('plugin-recovery')
     // Maintenance can block before Harness even starts. That must not turn
     // its retained snapshot into fresh failure evidence for repaired plugins.
     if (runtime.launchAttemptId !== previousAttempt) evidence.freshLaunch()
@@ -2296,7 +2299,7 @@ async function showPluginRecovery(options?: {
         // somehow not load, open it here and reload whatever is shown.
         pendingRepairPrompt = action.slice('agent:'.length)
         repairAgentLaunchError = undefined
-        await launchSafeHarness()
+        await launchSafeHarness('repair-agent')
         if (repairAgentService) {
           const availability = await repairAgentService.checkModelAvailability()
           if (!availability.ok) {
@@ -2463,7 +2466,7 @@ async function showPluginRecovery(options?: {
         }
         continue
       } else if (action === 'restart') {
-        await (safeModeVisible ? launchSafeHarness() : launchWithFreshEvidence())
+        await (safeModeVisible ? launchSafeHarness('plugin-recovery') : launchWithFreshEvidence())
         if (applyPendingFrontendEvidence()) continue
         if (runtime.snapshot().phase === 'ready') {
           schedulePluginRecoverySessionReset()
@@ -2728,10 +2731,10 @@ async function showSafeMode(): Promise<void> {
     return
   }
   if (safeModeVisible) {
-    await launchSafeHarness()
+    await launchSafeHarness('safe-mode')
     return
   }
-  await launchSafeHarness()
+  await launchSafeHarness('safe-mode')
 }
 
 async function showSafeModeManager(initial?: {
@@ -3023,7 +3026,7 @@ async function showSafeModeManager(initial?: {
             `[safe-mode] user exited with ${unresolved.length} unresolved compatibility issue${unresolved.length === 1 ? '' : 's'}`
           )
         }
-        await launchHarness()
+        await launchHarness('safe-mode')
         const recoveryLocked = await refreshMigrationRecoveryLock(dshHome)
         if (safeModeVisible || recoveryLocked) {
           // launchHarness may re-enter repairable Safe Mode. Its queued manager
@@ -3225,7 +3228,7 @@ function installMenu(): void {
         {
           label: isChinese ? '重启 Harness' : 'Restart Harness',
           accelerator: 'CmdOrCtrl+Shift+R',
-          click: () => void restartHarness().catch(showUnexpectedError)
+          click: () => void restartHarness('menu', 'restart-harness').catch(showUnexpectedError)
         },
         {
           label: isChinese ? '以安全模式重启…' : 'Restart as Safe Mode…',
@@ -3431,7 +3434,7 @@ async function bootstrap(): Promise<void> {
     harnessUrl: () => runtime.snapshot().url,
     harnessAuthToken: () => runtime.snapshot().authToken,
     ensureHarnessReady: async () => {
-      await launchSafeHarness()
+      await launchSafeHarness('repair-agent')
     },
     workspaceDirectory: join(app.getPath('userData'), 'harness'),
     harnessLogPath: join(app.getPath('logs'), 'harness.log'),
@@ -3611,7 +3614,7 @@ async function bootstrap(): Promise<void> {
     const dshHome = join(app.getPath('userData'), 'harness')
     if (await refreshMigrationRecoveryLock(dshHome)) {
       resolveSafeModeAction({ type: 'agent' })
-      await launchHarness()
+      await launchHarness('safe-mode')
       if (await refreshMigrationRecoveryLock(dshHome)) {
         void showSafeModeManager({
           notice: harnessLocale() === 'zh'
@@ -3633,7 +3636,7 @@ async function bootstrap(): Promise<void> {
       return { ok: false, blocked: true }
     }
     resolveSafeModeAction({ type: 'agent' })
-    await launchHarness()
+    await launchHarness('safe-mode')
     void mobileBridge.start().catch(showUnexpectedError)
     return { ok: true }
   })
@@ -3645,14 +3648,14 @@ async function bootstrap(): Promise<void> {
     }
     const dshHome = join(app.getPath('userData'), 'harness')
     await resetPluginProfile(dshHome, pluginName)
-    await launchHarness()
+    await launchHarness('safe-mode')
     return { ok: runtime.snapshot().phase === 'ready' }
   })
   installMenu()
   if (startInSafeMode) {
     void showSafeMode().catch(showUnexpectedError)
   } else {
-    await launchHarness()
+    await launchHarness('startup')
   }
   if (!developmentBuild) {
     startUpdateManager({
@@ -3718,7 +3721,7 @@ if (isDaemonLaunch(process.env, process.platform)) {
       if (snapshot?.phase === 'ready' && snapshot.url) {
         void openHarness(snapshot.url, 'user').catch(showUnexpectedError)
       } else if (snapshot?.phase === 'idle') {
-        void launchHarness().catch(showUnexpectedError)
+        void launchHarness('second-instance').catch(showUnexpectedError)
       }
     })
     app.on('window-all-closed', () => {

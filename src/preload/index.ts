@@ -560,7 +560,9 @@ window.addEventListener('pagehide', () => {
 contextBridge.exposeInMainWorld(
   'dshDesktop',
   Object.freeze({
-    restartHarness: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('harness:restart'),
+    // `reason` only annotates the Harness log line that attributes the restart;
+    // main treats it as untrusted and never uses it for authorization.
+    restartHarness: (reason?: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('harness:restart', reason),
     getBuiltInImageGenerationStatus: (): Promise<{ enabled: boolean; marketActive: boolean }> =>
       ipcRenderer.invoke('desktop-host-plugin:status'),
     setBuiltInImageGenerationEnabled: (enabled: boolean): Promise<{ ok: boolean; enabled?: boolean; restartRequired?: boolean; reason?: string }> =>
