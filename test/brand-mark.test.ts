@@ -35,7 +35,10 @@ it('leaves no copy of the retired window mark in the desktop UI', async () => {
     expect(source, file).not.toContain('M478.318')
     expect(source, file).not.toContain('BRAND_MARK_PATH')
     expect(source, file).toContain('FishLogo')
-    expect(source, file).toContain('FISH_LOGO_ASPECT')
+    // Sized by the width the retired mark occupied in that seat, not by its
+    // height: the whale is a narrower silhouette, so height-matching shrank it.
+    expect(source, file).toContain('BRAND_MARK_WIDTH')
+    expect(source, file).toMatch(/FishLogo, \{ size: [^}]*BRAND_MARK_WIDTH[^}]*\}/u)
   }
 })
 

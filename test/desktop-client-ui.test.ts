@@ -119,14 +119,13 @@ describe('DSH Desktop client slot occupants', () => {
     expect(sidebarName.type).toBe(BrandWordmark)
     expect(sidebarName.props.includeMark).toBe(false)
 
-    // The sidebar seat renders the shared whale primitive at the 17px optical
-    // height the retired window mark occupied. FishLogo sizes by width, so the
-    // height is reached through the mark's 23.16:17.04 aspect ratio.
+    // The sidebar seat renders the shared whale primitive at the width the retired
+    // window mark occupied there, so the brand lockup keeps its size.
     const sidebarMark = registrations.find(
       ({ config }) => config.name === 'sidebar.brand.mark'
     )!.component({ size: 24 }) as { type: unknown; props: Record<string, unknown> }
     expect(sidebarMark.type).toBe(FishLogo)
-    expect(sidebarMark.props.size).toBeCloseTo((17 * 23.16) / 17.04, 5)
+    expect(sidebarMark.props.size).toBeCloseTo(27.1, 5)
 
     const heroMark = registrations.find(
       ({ config }) => config.name === 'conversation.hero.brand.mark'
