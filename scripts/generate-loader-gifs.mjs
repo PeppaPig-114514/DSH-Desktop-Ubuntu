@@ -6,8 +6,8 @@ import { createRequire } from 'node:module'
 // Regenerate the startup splash loaders (build/dsh-loader.gif and
 // build/dsh-loader-dark.gif) from the brand mark in build/brand-mark.svg.
 // The mark is quantised onto a 4px pixel grid, bobs gently, and sheds a few
-// square "bubbles" from the window's traffic lights — the same motion the
-// previous hand-drawn loaders used, so splash.html needs no changes.
+// square "bubbles" from its back — the same motion the previous hand-drawn
+// loaders used, so splash.html needs no changes.
 
 const require = createRequire(import.meta.url)
 const sharp = require('sharp')
@@ -24,8 +24,8 @@ const CELL = 4
 const COLS = WIDTH / CELL
 const ROWS = HEIGHT / CELL
 
-/** Tight bounds of the mark inside its 1000x1000 artwork (shared with the sidebar mark). */
-const MARK_VIEWBOX = { x: 42, y: 218, width: 898, height: 564 }
+/** Native viewBox of the mark, matching build/brand-mark.svg. */
+const MARK_VIEWBOX = { x: 0, y: 0, width: 23.16, height: 17.04 }
 /** Body width in cells; matches the ~310px silhouette of the previous loader. */
 const BODY_CELLS = 78
 
@@ -84,9 +84,9 @@ function rng(seed) {
 
 /**
  * Bubbles are scheduled on a loop of FRAMES so the animation cycles seamlessly.
- * Each one starts inside the traffic-light corner, rises about a cell per two
- * frames with a little sideways drift, and fades through the theme's three
- * spark shades before it goes out.
+ * Each one starts just above the mark's back, rises about a cell per two frames
+ * with a little sideways drift, and fades through the theme's three spark shades
+ * before it goes out.
  */
 function buildSparks(body, random) {
   const sparks = []
