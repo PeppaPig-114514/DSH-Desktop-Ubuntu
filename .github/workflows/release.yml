@@ -352,15 +352,30 @@ jobs:
           if (Test-Path $packagedNode) { throw 'Standalone Windows node.exe must not be packaged.' }
           # Exercise the actual native binding too; the best-effort fallback
           # must not hide a missing or broken packaged koffi dependency.
-          $env:ELECTRON_RUN_AS_NODE = '1'
-          & $executable --input-type=module -e "import { createRequire } from 'node:module'; import { pathToFileURL } from 'node:url'; const require = createRequire(pathToFileURL(process.argv[1])); const resolved = require.resolve('koffi'); if (!resolved.startsWith(process.argv[2])) throw new Error('koffi resolved outside packaged app: ' + resolved); const koffi = require('koffi'); const getCurrentProcessId = koffi.load('kernel32.dll').func('GetCurrentProcessId', 'uint32', []); if (getCurrentProcessId() !== process.pid) throw new Error('Native koffi smoke failed'); console.log('Packaged koffi native binding passed'); process.exit(0);" (Join-Path $isolatedApp 'resources\app.asar.unpacked\node_modules\koffi\package.json') (Join-Path $isolatedApp 'resources\app.asar.unpacked\node_modules')
-          $koffiExitCode = $LASTEXITCODE
-          Write-Host "Electron Node Koffi probe exit code: $koffiExitCode"
+          # A Windows GUI-subsystem executable makes PowerShell's '&' return
+          # before the Node-mode child exits, leaving $LASTEXITCODE unset.
+          function Invoke-ElectronNode([string[]]$nodeArguments) {
+            $start = [System.Diagnostics.ProcessStartInfo]::new($executable)
+            $start.WorkingDirectory = $isolatedApp
+            $start.UseShellExecute = $false
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $start.Environment['ELECTRON_RUN_AS_NODE'] = '1'
+            foreach ($argument in $nodeArguments) { [void]$start.ArgumentList.Add($argument) }
+            $child = [System.Diagnostics.Process]::Start($start)
+            $stdout = $child.StandardOutput.ReadToEnd()
+            $stderr = $child.StandardError.ReadToEnd()
+            $child.WaitForExit()
+            if ($stdout) { Write-Host $stdout }
+            if ($stderr) { Write-Host $stderr }
+            return $child.ExitCode
+          }
+          $koffiProbe = "import { createRequire } from 'node:module'; import { pathToFileURL } from 'node:url'; const require = createRequire(pathToFileURL(process.argv[1])); const resolved = require.resolve('koffi'); if (!resolved.startsWith(process.argv[2])) throw new Error('koffi resolved outside packaged app: ' + resolved); const koffi = require('koffi'); const getCurrentProcessId = koffi.load('kernel32.dll').func('GetCurrentProcessId', 'uint32', []); if (getCurrentProcessId() !== process.pid) throw new Error('Native koffi smoke failed'); console.log('Packaged koffi native binding passed'); process.exit(0);"
+          $koffiExitCode = Invoke-ElectronNode @('--input-type=module', '-e', $koffiProbe, (Join-Path $isolatedApp 'resources\app.asar.unpacked\node_modules\koffi\package.json'), (Join-Path $isolatedApp 'resources\app.asar.unpacked\node_modules'))
           if ($koffiExitCode -ne 0) { throw "Packaged koffi native binding failed (exit code $koffiExitCode)." }
           $pnpmEntry = Join-Path $isolatedApp 'resources\app.asar.unpacked\node_modules\pnpm\bin\pnpm.cjs'
-          & $executable $pnpmEntry --version
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged pnpm failed under Electron Node mode.' }
-          Remove-Item Env:ELECTRON_RUN_AS_NODE
+          $pnpmExitCode = Invoke-ElectronNode @($pnpmEntry, '--version')
+          if ($pnpmExitCode -ne 0) { throw "Packaged pnpm failed under Electron Node mode (exit code $pnpmExitCode)." }
           if (Test-Path $userData) { Remove-Item -Recurse -Force $userData }
           $desktop = Start-Process -FilePath $executable -WorkingDirectory $isolatedApp -PassThru `
             -RedirectStandardOutput $desktopStdout -RedirectStandardError $desktopStderr
