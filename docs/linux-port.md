@@ -15,10 +15,39 @@ tracked patch layer.
 | Area | Change |
 | --- | --- |
 | Packaging | `linux` (`deb` + `AppImage`), `deb`, and `appImage` sections in `package.json`; `package:linux`, `package:linux:dir`, and `package:dev:linux` scripts |
-| Harness runtime | Linux uses the bundled target-native Node.js runtime, the same path Windows uses; macOS keeps its Electron `UtilityProcess` |
+| Harness runtime | Linux uses the bundled target-native Node.js runtime; macOS keeps its Electron `UtilityProcess`. Upstream `edb4398` later moved Windows to the packaged Electron binary in Node mode, so Linux is now the only platform that ships the standalone runtime |
 | Debian dependencies | The default `libgtk-3-0` / `libatspi2.0-0` names no longer exist after the Ubuntu 24.04 `t64` transition, so the Linux package declares alternatives that resolve on both older and newer releases |
 | Chromium sandbox | Debian `postinst` restores the SUID `chrome-sandbox` helper and installs an AppArmor `userns` profile; `postrm` removes the profile; the AppImage launcher falls back to `--no-sandbox` |
 | Target verification | `scripts/verify-target.mjs` already validates `linux/x64` and the bundled Node.js runtime; no change was needed |
+
+## Tracking the upstream build
+
+The port adds packaging and platform fixes on top of the upstream tree; it does
+not fork the shared code. The reference implementation is the Windows (and
+macOS) build, so upstream work is merged rather than reimplemented.
+
+This branch was cut from upstream `v0.10.0` and then merged forward to the
+current `origin/v0.10.0`. The merge carried one fix that the port needed badly,
+upstream `85ca438` ("Avoid duplicate web import preload bridge"), which removed a
+second `contextBridge.exposeInMainWorld('dshWebImport', …)` call.
+
+`contextBridge` throws `Cannot bind an API on top of an existing property on the
+window object` on the second exposure of the same key, and nothing in the preload
+catches it. The duplicate sat at module scope, so every statement after it was
+unreachable: `initializeUi()` and with it the About overlay, the Connect Phone
+button, the Safe Mode banner, the boot-failure overlay, the update banner, and
+the `updates:status-changed` / `desktop:show-about` listeners. The window still
+painted the Harness UI, so the build looked healthy while the whole
+preload-injected desktop layer was dead — which is why the shipped `0.1.1`
+package offered no About anywhere and no phone button.
+
+Re-check what the reference has moved on to with:
+
+```bash
+git fetch origin --tags
+git log --oneline <port-base>..origin/v0.10.0
+git merge origin/v0.10.0     # conflicts are usually the platform blocks below
+```
 
 ## Prerequisites
 
@@ -156,16 +185,38 @@ modified.
 
 - **In-app updates** stay disabled. `supportsAutoUpdates()` covers packaged
   macOS and Windows builds, so the update surfaces report `unsupported` on
-  Linux. Reinstall the new package to upgrade.
-- **Crash reporting** is disabled. `desktopPlatform()` in
+  Linux. This is enforced by the service, not only by that local gate: the
+  update endpoint rejects the platform the desktop would send, and no Linux
+  artifact is published to the feed.
+
+  ```console
+  $ curl -sS 'https://dshdesktop.com/crash/v1/updates/check?installationId=…&currentVersion=0.1.0&platform=linux'
+  {"error":"Invalid request","issues":[{"code":"invalid_value","values":["mac","mac-intel","windows"],
+   "path":["platform"],"message":"Invalid option: expected one of \"mac\"|\"mac-intel\"|\"windows\""}]}
+  $ curl -sSL -o /dev/null -w '%{http_code}\n' https://dshdesktop.com/updates/latest/latest-linux.yml
+  404
+  ```
+
+  A Linux value in `desktopPlatform()` would therefore change nothing by itself;
+  enabling updates needs the service to accept the platform and to publish
+  `latest-linux.yml` beside `latest.yml`. Reinstall the new package to upgrade.
+- **Crash reporting** is disabled for the same reason. `desktopPlatform()` in
   `src/main/desktop-service/service.ts` has no Linux value, so
   `initializeDesktopService()` logs one warning and the app continues without
-  diagnostics. Adding a Linux value would send reports to a service that only
-  knows the macOS and Windows platforms.
+  diagnostics. The service knows the macOS and Windows platforms only, so a
+  report Linux sent would be rejected exactly like the update check above.
+- **The menu bar carries two commands the other chromes own.** Windows reaches
+  Export Session Log and About from its custom titlebar menu and macOS from the
+  application menu. Both of those chromes are platform-gated, and neither is
+  mounted on Linux, so `installMenu` adds the two entries itself when
+  `process.platform === 'linux'`. Removing them leaves the commands implemented
+  but offered by no menu.
 - **Tray icon and close-to-tray** stay Windows-only (`ensureTray()` and
-  `shouldKeepRunningInBackground()`), so closing the window quits the app, which
-  matches Linux desktop conventions. The AppImage/deb desktop entry exposes the
-  same menu commands through the in-window menu bar.
+  `shouldKeepRunningInBackground()`), so closing the window quits the app. A
+  Linux tray needs a StatusNotifier host, which stock GNOME only provides
+  through an extension; hiding the window into a tray that never appears would
+  strand the user with no way back to the window. Closing the window therefore
+  stops the Harness and any session it is running, as on macOS.
 - **macOS-only recovery** — LaunchAgent auditing and quarantine — stays inert:
   both entry points return early on non-macOS platforms.
 - **Directory picker, phone pairing, safe mode, plugin recovery, PPT mode, and
@@ -195,7 +246,6 @@ store under `$XDG_DATA_HOME/pnpm`; a read-only home fails those two cases with
 
 The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
 
-- `npm run build`, `npm run typecheck`, and `npm test` (1490 tests) pass.
 - `npm run package:linux` produces `dsh-desktop-linux-amd64.deb` and
   `dsh-desktop-linux-x86_64.AppImage`.
 - Both the unpacked build and the AppImage start the bundled Node.js 24.9.0
@@ -204,6 +254,35 @@ The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
   composer, PPT mode, and the desktop plugins injected by the patch layer.
 - `apparmor_parser -Q --skip-cache` accepts `build/dsh-desktop.apparmor` with the
   installed path substituted, including the space in `/opt/DSH Desktop`.
+
+After the upstream merge, `npm run typecheck`, `npm run build`, and `npm test`
+(1502 passed, 4 skipped) were re-run on the same host. Two things the test suite
+cannot reach need a running app, and both were read back from a development
+instance started with:
+
+```bash
+XDG_CONFIG_HOME=/tmp/dsh-linux-check \
+  node_modules/electron/dist/electron --inspect=9333 . \
+  --remote-debugging-port=9334 --no-sandbox --password-store=basic
+```
+
+- **The preload layer.** `http://127.0.0.1:9334/json` exposes the renderer, where
+  the preload-injected roots `dsh-desktop-about-root`, `dsh-desktop-update-root`
+  and `dsh-desktop-mobile-button` appear once `initializeUi()` has run. Copying
+  the built `out/preload/index.cjs`, re-adding the duplicate `dshWebImport`
+  exposure, and reloading the page removes all three — the failure the shipped
+  `0.1.1` package had. The phone button is injected from the DOM observer, so it
+  follows an animation frame and stays absent while the window is hidden.
+- **The menu.** `http://127.0.0.1:9333/json` exposes the main process. The main
+  bundle is ESM, so `Menu` is reached through
+  `process.getBuiltinModule('module').createRequire(…)( 'electron')` rather than
+  `require`. On Linux `Menu.getApplicationMenu().items` then lists 连接手机…,
+  重启 Harness, 以安全模式重启…, 查看 Harness 日志, 检查更新…,
+  导出 Session 日志…, 关于 DSH Desktop and Quit.
+
+`test/linux-desktop-menu.test.ts` keeps that menu coverage from being dropped
+again, as a source contract over `installMenu`; `test/preload-bridge-uniqueness.test.ts`
+(from upstream) is the behavioural guard for the bridge.
 
 The SUID helper and AppArmor profile can only be exercised by a real install,
 because dpkg runs the `postinst` as root:
