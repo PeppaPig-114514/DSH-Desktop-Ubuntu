@@ -155,7 +155,8 @@ function attachWorkbenchRouting(uiWorkspace, sessionState, workspaceState) {
 
 describe('native Workspace navigation with workbench routing', () => {
   it('removes workspace folders that have no sessions in the active scope', () => {
-    expect(source).toContain('sessionIds: workspace.sessionIds.filter(isSessionVisible) })).filter((workspace) => workspace.sessionIds.length > 0)')
+    expect(source).toContain('sessionIds: workspace.sessionIds.filter(isSessionVisible)')
+    expect(source).toContain('.filter((workspace) => workspace.sessionIds.length > 0)')
     expect(source).toContain('if (g.sessions.length === 0) continue;')
   })
 

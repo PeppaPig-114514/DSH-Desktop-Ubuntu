@@ -71,6 +71,7 @@ async function createOperationLog(dshHome) {
 export function createGenerationPackageBackend(options) {
   const {
     dshHome,
+    dshEntryPath,
     nodeExecutablePath,
     pnpmEntryPath,
     environment = process.env,
@@ -81,22 +82,30 @@ export function createGenerationPackageBackend(options) {
   return Object.freeze({
     async install(request) {
       const log = await createOperationLog(dshHome)
+      let activeChild
+      const abortChild = () => activeChild?.kill('SIGKILL')
+      request.signal?.addEventListener('abort', abortChild, { once: true })
       let closed = false
+      let outputWrites = Promise.resolve()
       const finishLog = async () => {
         if (closed) return { output: '', truncated: false }
+        await outputWrites
         closed = true
         return log.close()
       }
-      const emit = async (text, stream = 'stdout') => {
-        await log.append(text)
-        request.onOutput?.(text, stream)
+      const emit = (text, stream = 'stdout') => {
+        outputWrites = outputWrites.then(async () => {
+          await log.append(text)
+          request.onOutput?.(text, stream)
+        })
+        return outputWrites
       }
 
       try {
         request.signal?.throwIfAborted()
         let expectedPluginName = request.expectedName
         let sourceDirectory
-        let sourceSpec
+        let sourceSpec = request.sourceSpec
         if (request.kind === 'registry') {
           expectedPluginName ??= packageNameFromRegistrySpec(request.spec)
         } else if (request.kind === 'path') {
@@ -120,10 +129,18 @@ export function createGenerationPackageBackend(options) {
             expectedPluginName,
             sourceDirectory,
             sourceSpec,
+            registry: request.registry,
+            expectedVersion: request.expectedVersion,
+            autoInstallPeers: request.autoInstallPeers,
+            minimumReleaseAge: request.minimumReleaseAge,
             nodeExecutablePath,
             pnpmEntryPath,
             environment,
             spawnProcess,
+            registerChild: child => {
+              activeChild = child
+              if (request.signal?.aborted) abortChild()
+            },
             runInstall,
             onTrace: line => { void emit(`${line}\n`) },
             onOutput: text => { void emit(text) }
@@ -133,7 +150,7 @@ export function createGenerationPackageBackend(options) {
           }
           request.signal?.throwIfAborted()
           const generation = install.generation
-          const peers = await verifyGenerationPeers(dshHome, generation)
+          const peers = await verifyGenerationPeers(dshHome, generation, { dshEntryPath })
           if (!peers.ok) {
             return { ok: false, detail: `generation peer validation failed: ${peers.problems.join('; ')}` }
           }
@@ -159,8 +176,28 @@ export function createGenerationPackageBackend(options) {
           let committed = false
           const rollback = async () => {
             if (committed) return
-            await writeDesired(dshHome, beforeDesired)
-            await projectGenerations(dshHome, PROFILE)
+            await withRegistryLock(dshHome, async () => {
+              if (committed) return
+              const currentDesired = await readDesired(dshHome)
+              // A newer operation may already have replaced this package. Its
+              // pointer must win, while unrelated package changes are kept.
+              if (!currentDesired.includes(generation.id)) return
+              const previousIds = beforeDesired.filter(id =>
+                beforeGenerations.some(item => item.id === id && item.pluginName === generation.pluginName)
+              )
+              const restored = [
+                ...currentDesired.filter(id => id !== generation.id),
+                ...previousIds
+              ]
+              await writeDesired(dshHome, restored)
+              try {
+                await projectGenerations(dshHome, PROFILE)
+              } catch (error) {
+                await writeDesired(dshHome, currentDesired)
+                throw error
+              }
+              committed = true
+            })
           }
           return {
             ok: true,
@@ -204,6 +241,8 @@ export function createGenerationPackageBackend(options) {
             logPath: log.path
           }
         }
+      } finally {
+        request.signal?.removeEventListener('abort', abortChild)
       }
     },
 

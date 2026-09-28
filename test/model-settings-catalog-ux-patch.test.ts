@@ -123,13 +123,13 @@ describe('settings model catalog search', () => {
     const modelListEditor = modelListEditorSource(client)
 
     expect(modelListEditor).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14'
+      '_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular'
     )
     expect(modelListEditor).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14'
+      '_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular'
     )
     expect(modelListEditor).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16'
+      '_deepseek_ai_dsh_client_ui_primitives.IconTrashOutlineRegular'
     )
     expect(modelListEditor).not.toMatch(/jsx\)\(Icon(?:Chevron|Trash)\b/)
   })
@@ -174,13 +174,13 @@ describe('settings provider editor sticky actions', () => {
       'className: ModelsSection_module_css_default["addModelButton"]'
     )
     expect(patch).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutline14'
+      '_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular'
     )
     expect(patch).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutline14'
+      '_deepseek_ai_dsh_client_ui_primitives.IconChevronRightOutlineRegular'
     )
     expect(patch).toContain(
-      '_deepseek_ai_dsh_client_ui_primitives.IconTrashOutline16'
+      '_deepseek_ai_dsh_client_ui_primitives.IconTrashOutlineRegular'
     )
     expect(patch).not.toMatch(/jsx\)\(Icon(?:Chevron|Trash)\b/)
   })
