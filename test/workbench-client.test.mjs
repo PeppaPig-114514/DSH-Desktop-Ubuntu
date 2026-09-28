@@ -871,7 +871,8 @@ describe('desktop workbench client navigation', () => {
     const customHost = frame.children.find((child) => child?.props?.key === 'dock')
     expect(customHost.props.hidden).toBe(false)
     expect(customHost.props.className).toBe('dshWbCustomFrame')
-    expect(code).toContain('html[data-platform=darwin] [data-sidebar-collapsed] .dshWbBusiness[data-side=left]{padding-top:var(--dsh-frame-top-clearance,48px)}')
+    expect(code).toContain('.dshWbBusiness[data-side=left][data-embedded=true] > :first-child > header:first-child')
+    expect(code).toContain('padding-inline-start:var(--dsh-frame-leading-clearance,160px)')
     expect(customHost.props.style).toMatchObject({
       position: 'relative', overflow: 'hidden', flex: 1, minHeight: 0, minWidth: 0,
       width: '100%', maxWidth: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
