@@ -276,6 +276,33 @@ implementing the native keyboard bridge and letting Linux resolve
 `runtime: desktop` against the `desktop:linux` defaults upstream already ships —
 a deliberate piece of work, not a one-line patch.
 
+## App icons
+
+`build/icon.png` is not an app icon. `scripts/install-brand-assets.mjs` turns it
+into the Web favicon (`dsh-desktop-logo.png`) and the page's `<link rel="icon">`;
+it is light artwork, 1254px wide, and has no alpha channel. Pointing `linux.icon`
+at it was wrong twice over:
+
+- A single PNG makes electron-builder name the icon-theme directory after the
+  image's pixel width, so the deb and the AppImage installed exactly one entry,
+  `/usr/share/icons/hicolor/1254x1254/apps/dsh-desktop.png`. No icon loader reads
+  that directory, so `Icon=dsh-desktop` resolved to nothing and the dock,
+  launcher and app switcher fell back to a generic placeholder.
+- The artwork itself differed from Windows and macOS, which build `icon.ico` and
+  `icon.icns` from `build/app-icon.png`.
+
+`linux.icon` is now `build/icons`, and `npm run icons:generate:linux` fills it
+with the freedesktop size ladder (16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192,
+256, 512) rendered from `build/app-icon.png` — the same source as the Windows and
+macOS icons, and the file `resources/icon.png` already used for the window icon.
+Both targets install all thirteen sizes, and the AppImage points `.DirIcon` at
+the 512px entry.
+
+Unlike `scripts/generate-app-icons.mjs`, which shells out to the macOS-only
+`sips`/`iconutil`, the Linux generator uses `sharp` and runs on any host. The
+generated PNGs are committed beside `icon.ico` and `icon.icns`, and
+`test/linux-icon-set.test.ts` fails if they drift from `build/app-icon.png`.
+
 ## Verifying a Linux build
 
 ```bash
@@ -355,6 +382,19 @@ mounts the module in jsdom, evaluates the patched `detectEnvironment` and
 `resolveShortcutDefault` out of the Harness client bundle, and reads the two
 geometry patches. Both halves fail if the escape hatch is dropped or the Linux
 scope is removed from a patch.
+
+Packaged icons are read back out of the artifacts, because that is where both
+failures lived — a source image that was not an app icon, and a directory name
+no icon loader understands:
+
+```bash
+dpkg-deb -c dist/dsh-desktop-linux-amd64.deb | grep hicolor
+```
+
+Expect one `apps/dsh-desktop.png` under each standard size directory and no
+`hicolor/<nonstandard width>/`. Every packaged file's pixel dimensions must match
+the directory it sits in; `test/linux-icon-set.test.ts` asserts that for the
+source ladder and pins it to `build/app-icon.png`.
 
 The SUID helper and AppArmor profile can only be exercised by a real install,
 because dpkg runs the `postinst` as root:
