@@ -40,6 +40,47 @@ function readIcns(buffer: Buffer): Array<{ type: string; png: Buffer }> {
   return chunks
 }
 
+interface MarkBounds {
+  minX: number
+  minY: number
+  width: number
+  height: number
+}
+
+/**
+ * Bounding box of the pixels a predicate selects.
+ * @param file - image to scan.
+ * @param width - image width.
+ * @param height - image height.
+ * @param selects - predicate over one RGBA pixel.
+ * @returns the box, all zero when nothing matched.
+ */
+async function markBounds(
+  file: string,
+  width: number,
+  height: number,
+  selects: (pixel: number[]) => boolean
+): Promise<MarkBounds> {
+  const { data } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4
+      const pixel = [data[offset] ?? 0, data[offset + 1] ?? 0, data[offset + 2] ?? 0, data[offset + 3] ?? 0]
+      if (!selects(pixel)) continue
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  }
+  if (maxX < 0) return { minX: 0, minY: 0, width: 0, height: 0 }
+  return { minX, minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+}
+
 it('ships a standard icon-theme size ladder instead of one odd-sized png', async () => {
   const pkg = JSON.parse(await readFile('package.json', 'utf8')) as {
     build: { linux: { icon: string } }
@@ -110,30 +151,32 @@ it('carries the official whale silhouette, not the retired window mark', async (
   // The mark inside the tile is the official whale, whose native box is
   // 23.16x17.04. The window mark it replaced was 898x564 — a wider ratio — so
   // the silhouette's proportions are what distinguishes them in the raster.
-  const { data } = await sharp('build/app-icon.png')
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  let minX = Number.MAX_SAFE_INTEGER
-  let minY = Number.MAX_SAFE_INTEGER
-  let maxX = -1
-  let maxY = -1
-  const width = 1024
-  for (let y = 0; y < 1024; y += 1) {
-    for (let x = 0; x < 1024; x += 1) {
-      const offset = (y * width + x) * 4
-      const bright = (data[offset] ?? 0) + (data[offset + 1] ?? 0) + (data[offset + 2] ?? 0)
-      if (bright > 380 && (data[offset + 3] ?? 0) > 128) {
-        if (x < minX) minX = x
-        if (x > maxX) maxX = x
-        if (y < minY) minY = y
-        if (y > maxY) maxY = y
-      }
-    }
-  }
-  expect(maxX).toBeGreaterThan(0)
-  const ratio = (maxX - minX + 1) / (maxY - minY + 1)
-  expect(ratio).toBeCloseTo(23.16 / 17.04, 1)
-  // It keeps the optical height the previous mark occupied inside the tile.
-  expect(maxY - minY + 1).toBeCloseTo(379, -1)
+  const box = await markBounds('build/app-icon.png', 1024, 1024, (pixel) => {
+    return (pixel[0] ?? 0) + (pixel[1] ?? 0) + (pixel[2] ?? 0) > 380 && (pixel[3] ?? 0) > 128
+  })
+  expect(box.width).toBeGreaterThan(0)
+  expect(box.width / box.height).toBeCloseTo(23.16 / 17.04, 2)
+})
+
+it('fills enough of the plate to stay legible at dock sizes', async () => {
+  // Sizing the mark to the *height* of the outline it replaced left it about a
+  // fifth narrower than that mark, and the eye and fin notches that carry this
+  // silhouette smeared into a blob at 24px and below. Both plates size the mark
+  // to 80% of their width; these floors catch a future shrink back.
+  const tile = { x: 100, width: 824 }
+  const appMark = await markBounds('build/app-icon.png', 1024, 1024, (pixel) => {
+    return (pixel[0] ?? 0) + (pixel[1] ?? 0) + (pixel[2] ?? 0) > 380 && (pixel[3] ?? 0) > 128
+  })
+  expect(appMark.width).toBeGreaterThanOrEqual(tile.width * 0.75)
+  expect(appMark.width).toBeLessThanOrEqual(tile.width * 0.85)
+  expect(appMark.minX).toBeGreaterThanOrEqual(tile.x)
+  expect(appMark.minX + appMark.width).toBeLessThanOrEqual(tile.x + tile.width)
+
+  const plate = 1254
+  const webMark = await markBounds('build/icon.png', plate, plate, (pixel) => {
+    return (pixel[2] ?? 0) - (pixel[0] ?? 0) > 30
+  })
+  expect(webMark.width).toBeGreaterThanOrEqual(plate * 0.75)
+  expect(webMark.width).toBeLessThanOrEqual(plate * 0.85)
+  expect(webMark.width / webMark.height).toBeCloseTo(23.16 / 17.04, 2)
 })
