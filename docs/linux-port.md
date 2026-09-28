@@ -244,9 +244,11 @@ macOS announces `darwin` (`src/preload/macos-window-chrome.ts`). Windows
 deliberately announces nothing, so the patches express "the host that reserves a
 native caption strip" as the absence of the attribute. Linux announced nothing
 either and therefore inherited the Windows geometry: the sidebar carried a
-`padding-top:32px` meant to clear a caption strip that a natively framed Linux
-window does not have. Measured in a running window, the sidebar's own padding was
-`32px` before and `6px` after, with the conversation header unchanged at `10px`.
+`padding-top:32px` meant to clear a caption strip. Linux draws its caption inside
+the header bands instead (see "The window frame on Linux"), so it still has no
+reason to reserve that strip. Measured in a running window, the sidebar's own
+padding was `32px` before and `6px` after, with the conversation header unchanged
+at `10px`.
 
 `src/preload/linux-window-chrome.ts` now announces `linux`, and the two geometry
 patches scope the Windows rules as
@@ -310,6 +312,33 @@ import the shared list as a *type*: a runtime import shared with
 a sandboxed preload cannot load files — the renderer silently loses its entire
 bridge and the Windows caption menu dies with it. And the settings occupant stays
 a source contract, because no unit test can open the dialog and click it.
+
+## The window frame on Linux
+
+Windows and macOS keep a native frame and borrow the OS for the caption controls
+(`titleBarOverlay` on Windows, the traffic lights on macOS). A GTK window draws
+its own titlebar above whatever the app adds, so Linux runs frameless — `frame:
+false` for that platform only — and draws the controls itself:
+
+| | |
+| --- | --- |
+| Controls | minimize, maximize/restore and close, fixed at the window's top-right and aligned with the conversation header's title row |
+| Source | `src/preload/linux-window-chrome.ts`, mounted on every page of the window — including recovery and Safe Mode, where no Harness slot exists to host them |
+| IPC | `desktop-window:minimize`, `:toggle-maximize`, `:close`, `:get-state`, plus a pushed `:state-changed` so the icon follows a double-click or the window manager |
+| Drag | the bands upstream marks `data-window-drag` (the conversation header, the sidebar's logo row and the plugin-manager headers); their interactive elements are switched back to `no-drag` |
+| Room | those bands reserve `BAND_CLEARANCE` on their right, so a page's own header actions cannot end up under the controls |
+
+The session actions that used to share the title row — open in file manager, the
+⋯ menu and the right-sidebar toggle — move down to the tab row, which is the one
+change this makes to upstream's own layout: the conversation patch adds Linux-only
+rules pinning `.wSkVaW_headerUtilities` and `.wSkVaW_headerCorner` beside the
+Conversation/Trajectory tabs.
+
+Two consequences are worth knowing before touching this. Dropping the titlebar
+also drops the window manager's own dragging (hence the drag bands) and its
+double-click-to-maximize (hence the `dblclick` handler, which the Windows overlay
+gets from the OS). And `frame: false` is scoped to Linux: Windows and macOS keep
+their options and the caption widths they had.
 
 ## App icons
 
@@ -479,6 +508,26 @@ mounts the module in jsdom, evaluates the patched `detectEnvironment` and
 `resolveShortcutDefault` out of the Harness client bundle, and reads the two
 geometry patches. Both halves fail if the escape hatch is dropped or the Linux
 scope is removed from a patch.
+
+The window chrome needs both halves of the debug surface, and the frame itself
+comes from the main process:
+
+```js
+// main process: a frameless window reports no frame at all
+win.getBounds()        // { width: 1380, height: 900 }
+win.getContentBounds() // { width: 1380, height: 900 }  — equal, and equal to
+                                                       // the page's innerWidth/Height
+// renderer: the controls sit in the title band, the session actions in the tab band
+document.getElementById('dsh-desktop-linux-window-controls').getBoundingClientRect()
+document.querySelector('[class*=wSkVaW_headerUtilities]').getBoundingClientRect()
+```
+
+Measured that way in a session: the controls at y8–40 (the title row) and both
+`headerUtilities` and `headerCorner` at y50 (the tab row, beside 对话/轨迹); on the
+plugins page 刷新 and 添加插件 sit left of the controls rather than under them.
+Keep the window shown and settled before trusting these numbers — a hidden or
+just-resized Wayland window reports its content bounds out of step for a moment,
+which is easy to misread as a leftover titlebar.
 
 Packaged icons are read back out of the artifacts, because that is where both
 failures lived — a source image that was not an app icon, and a directory name
