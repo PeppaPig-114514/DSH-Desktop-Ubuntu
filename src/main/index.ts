@@ -1050,6 +1050,10 @@ function createWindow(): BrowserWindow {
         autoHideMenuBar: true
       }
       : {}),
+    // Linux has no OS-drawn caption overlay to borrow: the desktop draws the
+    // window's own controls (src/preload/linux-window-chrome.ts), and a GTK
+    // frame would otherwise add a native titlebar above them.
+    ...(process.platform === 'linux' ? { frame: false } : {}),
     backgroundColor: process.platform === 'darwin' ? '#00000000' : nativeTheme.shouldUseDarkColors ? '#141416' : '#f8f8f6',
     webPreferences: {
       contextIsolation: true,
@@ -1075,6 +1079,19 @@ function createWindow(): BrowserWindow {
     window.on('leave-full-screen', syncFullscreen)
   } else if (isWindows) {
     window.setMenuBarVisibility(false)
+  } else {
+    // The renderer's caption draws the maximize/restore icon from this state, so
+    // it has to follow what the renderer did not initiate: a double-click on the
+    // drag region, a keyboard command, or the window manager itself.
+    const syncWindowState = (): void => {
+      if (window.isDestroyed()) return
+      window.webContents.send('desktop-window:state-changed', { maximized: window.isMaximized() })
+    }
+    window.webContents.on('did-finish-load', syncWindowState)
+    window.on('maximize', syncWindowState)
+    window.on('unmaximize', syncWindowState)
+    window.on('enter-full-screen', syncWindowState)
+    window.on('leave-full-screen', syncWindowState)
   }
   windowStateManager.track(window)
   if (windowStateManager.getState().isMaximized) {
@@ -1851,6 +1868,37 @@ function registerHarnessHandlers(): void {
       applyWindowChromeTheme(mainWindow, isDark)
     }
     return { ok: true }
+  })
+
+  // Linux draws its own caption, so these are the window's only minimize,
+  // maximize and close controls. Same trust rule as the rest of the chrome.
+  ipcMain.removeHandler('desktop-window:minimize')
+  ipcMain.handle('desktop-window:minimize', (event) => {
+    assertTrustedMainWindowEvent(event)
+    mainWindow?.minimize()
+    return { ok: true }
+  })
+
+  ipcMain.removeHandler('desktop-window:toggle-maximize')
+  ipcMain.handle('desktop-window:toggle-maximize', (event) => {
+    assertTrustedMainWindowEvent(event)
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false }
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
+    return { ok: true }
+  })
+
+  ipcMain.removeHandler('desktop-window:close')
+  ipcMain.handle('desktop-window:close', (event) => {
+    assertTrustedMainWindowEvent(event)
+    mainWindow?.close()
+    return { ok: true }
+  })
+
+  ipcMain.removeHandler('desktop-window:get-state')
+  ipcMain.handle('desktop-window:get-state', (event) => {
+    assertTrustedMainWindowEvent(event)
+    return { maximized: mainWindow?.isMaximized() ?? false }
   })
 
   ipcMain.removeHandler('desktop:about-info')

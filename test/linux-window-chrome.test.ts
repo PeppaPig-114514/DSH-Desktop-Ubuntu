@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
-import { mountLinuxWindowChrome } from '../src/preload/linux-window-chrome'
+import { markLinuxPlatform } from '../src/preload/linux-window-chrome'
 
 async function readShortcutsClient(): Promise<string> {
   return readFile('node_modules/@deepseek-ai/dsh-client-shortcuts/lib/client.js', 'utf8')
@@ -16,27 +16,22 @@ function extract(source: string, signature: string): string {
 
 it('marks the Linux platform and the Web keyboard adapter before the client modules mount', () => {
   const doc = document.implementation.createHTMLDocument()
-  const dispose = mountLinuxWindowChrome(doc)
+  markLinuxPlatform(doc)
   expect(doc.documentElement.dataset.platform).toBe('linux')
   expect(doc.documentElement.dataset.dshDesktopWebShortcuts).toBe('true')
-  dispose()
 })
 
-it('marks the root again on DOMContentLoaded and stops listening on dispose', () => {
+it('marks the root again on DOMContentLoaded', () => {
   const doc = document.implementation.createHTMLDocument()
   const root = doc.documentElement
   root.remove()
-  const dispose = mountLinuxWindowChrome(doc)
+  markLinuxPlatform(doc)
   // The preload runs before the parser creates <html>; DOMContentLoaded is the
   // second chance to stamp the attributes the client modules read.
   doc.append(root)
   doc.dispatchEvent(new Event('DOMContentLoaded'))
   expect(root.dataset.platform).toBe('linux')
   expect(root.dataset.dshDesktopWebShortcuts).toBe('true')
-  dispose()
-  root.removeAttribute('data-platform')
-  doc.dispatchEvent(new Event('DOMContentLoaded'))
-  expect(root.hasAttribute('data-platform')).toBe(false)
 })
 
 it('keeps the Web runtime so Harness never demands the missing native keyboard bridge', async () => {
@@ -50,7 +45,7 @@ it('keeps the Web runtime so Harness never demands the missing native keyboard b
   // deprecated string "Linux x86_64" rather than a platform name.
   expect(detect(doc, { platform: 'Linux x86_64' })).toEqual({ runtime: 'web', platform: 'linux' })
 
-  mountLinuxWindowChrome(doc)
+  markLinuxPlatform(doc)
   // `runtime: desktop` makes Harness throw "Desktop keyboard bridge unavailable"
   // unless window.dshDesktop.keyboard exists, and this host exposes no bridge.
   expect(detect(doc, { platform: 'Linux x86_64' })).toEqual({ runtime: 'web', platform: 'linux' })
@@ -80,7 +75,8 @@ it('scopes the Windows caption-strip geometry away from Linux', async () => {
   ])
   const scoped = 'html:not([data-platform=darwin]):not([data-platform=linux])'
   // Windows leaves data-platform unset, so the caption strip is the absence of
-  // both announcing platforms. Linux runs a native frame and must not reserve it.
+  // both announcing platforms. Linux draws its own caption inside the header
+  // bands, so the Windows strip's padding must not apply there either.
   expect(sidebar).toContain(`${scoped} [data-dsh-sidebar-root][data-dsh-sidebar-wide=\\"true\\"]{padding-top:32px}`)
   expect(conversation.split(scoped).length - 1).toBe(2)
   expect(sidebar).not.toContain('html:not([data-platform=darwin]) [data-dsh-sidebar-root]')
@@ -97,10 +93,12 @@ it('leaves the other desktop hosts untouched', async () => {
   for (const patch of [sidebar, conversation]) expect(patch).not.toContain('[data-platform=windows]')
 })
 
-it('mounts only on Linux and disposes with the window', async () => {
+it('marks and mounts only on Linux', async () => {
   const source = await readFile('src/preload/index.ts', 'utf8')
-  expect(source).toContain("import { mountLinuxWindowChrome } from './linux-window-chrome'")
-  expect(source).toContain("if (process.platform === 'linux') {")
-  expect(source).toContain('const dispose = mountLinuxWindowChrome(document)')
-  expect(source.match(/mountLinuxWindowChrome\(document\)/g)).toHaveLength(1)
+  expect(source).toContain("import { markLinuxPlatform, mountLinuxWindowChrome } from './linux-window-chrome'")
+  // The platform is announced as the preload loads; the visible chrome waits for
+  // a body, beside the Windows caption layout.
+  expect(source).toContain('markLinuxPlatform(document)')
+  expect(source).toContain('mountLinuxWindowChrome({ document, ipcRenderer })')
+  expect(source.match(/process\.platform === 'linux'/g)).toHaveLength(2)
 })
