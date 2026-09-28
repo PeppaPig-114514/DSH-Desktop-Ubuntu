@@ -3187,20 +3187,32 @@ function installMenu(): void {
   const checkForUpdatesLabel = isChinese
     ? '检查更新…'
     : 'Check for Updates…'
+  const aboutEntry: Electron.MenuItemConstructorOptions = {
+    label: isChinese ? '关于 DSH Desktop' : 'About DSH Desktop',
+    click: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        void showAbout(mainWindow).catch(showUnexpectedError)
+      }
+    }
+  }
+  // Windows reaches this from its custom titlebar menu, and macOS from the
+  // application menu. Linux mounts neither chrome — `mountWindowsTitlebarLayout`
+  // and `mountMacosWindowChrome` are both platform-gated — so without an entry
+  // here the command exists but no menu offers it.
+  const exportSessionEntry: Electron.MenuItemConstructorOptions = {
+    label: isChinese ? '导出 Session 日志…' : 'Export Session Log…',
+    click: () => void executeDesktopMenuCommand('export-session').catch(showUnexpectedError)
+  }
+  // The native menu bar is the only menu on Linux; the two other chromes are
+  // mounted elsewhere or not at all.
+  const nativeMenuOnly = process.platform === 'linux'
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
       ? [
         {
           label: app.name,
           submenu: [
-            {
-              label: isChinese ? '关于 DSH Desktop' : 'About DSH Desktop',
-              click: () => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  void showAbout(mainWindow).catch(showUnexpectedError)
-                }
-              }
-            },
+            aboutEntry,
             {
               label: checkForUpdatesLabel,
               accelerator: 'CmdOrCtrl+U',
@@ -3246,11 +3258,16 @@ function installMenu(): void {
               label: checkForUpdatesLabel,
               accelerator: 'CmdOrCtrl+U',
               click: () => void checkForUpdates(true).catch(showUnexpectedError)
-            }
+            },
+            ...(nativeMenuOnly ? [exportSessionEntry] : [])
           ]),
         ...(process.platform === 'darwin'
           ? []
-          : [{ type: 'separator' as const }, { role: 'quit' as const }])
+          : [
+            { type: 'separator' as const },
+            ...(nativeMenuOnly ? [aboutEntry, { type: 'separator' as const }] : []),
+            { role: 'quit' as const }
+          ])
       ]
     },
     {
