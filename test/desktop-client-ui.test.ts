@@ -52,7 +52,9 @@ describe('DSH Desktop client slot occupants', () => {
       props: { ...props, children }
     })
     const BrandWordmark = vi.fn()
+    const Button = vi.fn()
     const FishLogo = vi.fn()
+    const Menu = vi.fn()
     const plugin = definition!.factory((id) => {
       if (id === 'react') {
         return {
@@ -62,7 +64,7 @@ describe('DSH Desktop client slot occupants', () => {
         }
       }
       if (id === '@deepseek-ai/dsh-client-ui-primitives') {
-        return { BrandWordmark, FishLogo }
+        return { BrandWordmark, Button, FishLogo, Menu }
       }
       throw new Error(`Unexpected client dependency: ${id}`)
     })
@@ -84,9 +86,17 @@ describe('DSH Desktop client slot occupants', () => {
         return () => undefined
       }
     }
-    plugin.apply({ slots, effect: (setup: () => (() => void) | undefined) => { disposeStyle = setup() } })
+    const locale = {
+      register: vi.fn(() => () => undefined),
+      bind: vi.fn(() => (key: string) => key)
+    }
+    plugin.apply({
+      slots,
+      locale,
+      effect: (setup: () => (() => void) | undefined, _label?: string) => { disposeStyle = setup() }
+    })
 
-    expect(plugin.inject).toEqual(['slots', 'remote.session', 'sessions', 'uiWorkspace'])
+    expect(plugin.inject).toEqual(['slots', 'remote.session', 'sessions', 'uiWorkspace', 'locale'])
     expect(registrations.map(({ config }) => config.name)).toEqual([
       'sidebar.brand.mark',
       'sidebar.brand.name',
@@ -94,7 +104,8 @@ describe('DSH Desktop client slot occupants', () => {
       'sidebar.right.tab.document.unpreviewable',
       'sidebar.workspaces.session.menu.item',
       'sidebar.workspaces.session.menu.item',
-      'sidebar.workspaces.session.menu.item'
+      'sidebar.workspaces.session.menu.item',
+      'settings.action'
     ])
     // Desktop toolbar styles have an owned lifetime; branding stays in currentColor.
     expect(appended).toHaveLength(1)
