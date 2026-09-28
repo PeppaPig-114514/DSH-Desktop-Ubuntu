@@ -205,12 +205,15 @@ modified.
   `initializeDesktopService()` logs one warning and the app continues without
   diagnostics. The service knows the macOS and Windows platforms only, so a
   report Linux sent would be rejected exactly like the update check above.
-- **The menu bar carries two commands the other chromes own.** Windows reaches
-  Export Session Log and About from its custom titlebar menu and macOS from the
-  application menu. Both of those chromes are platform-gated, and neither is
-  mounted on Linux, so `installMenu` adds the two entries itself when
-  `process.platform === 'linux'`. Removing them leaves the commands implemented
-  but offered by no menu.
+- **No menu bar; the desktop commands live in the settings header.** A GTK
+  window draws the application menu as a row of top-level menus across its
+  top-left, and Electron has no way to keep the menu while hiding that row the
+  way Windows does with `autoHideMenuBar`. Linux therefore installs no menu at
+  all, and the commands that only a menu offered — the Harness group, plus
+  Export Session Log and About, which Windows and macOS reach from their own
+  chromes — are registered in the settings panel header (`settings.action`) by
+  `packages/dsh-desktop-client-ui`. Dropping the bar also drops its
+  accelerators; see the keyboard note below for why that costs Linux little.
 - **Tray icon and close-to-tray** stay Windows-only (`ensureTray()` and
   `shouldKeepRunningInBackground()`), so closing the window quits the app. A
   Linux tray needs a StatusNotifier host, which stock GNOME only provides
@@ -275,6 +278,38 @@ activate` and the app drops into plugin recovery. Closing this gap means
 implementing the native keyboard bridge and letting Linux resolve
 `runtime: desktop` against the `desktop:linux` defaults upstream already ships —
 a deliberate piece of work, not a one-line patch.
+
+## The desktop menu
+
+Windows keeps its menu in a custom caption strip and hides the native menu bar
+(`autoHideMenuBar`, plus `setMenuBarVisibility(false)`); macOS uses the
+application menu. Linux had neither, so `installMenu` built a native menu — which
+GTK draws as a row of top-level menus across the window's top-left. Electron
+cannot keep that menu while hiding the row, so Linux now installs none.
+
+The commands the bar carried moved into the settings panel header, beside
+upstream's 打开配置文件:
+
+| | |
+| --- | --- |
+| Where | `packages/dsh-desktop-client-ui/client.js`, a `settings.action` occupant |
+| What | 连接手机…, 重启 Harness, 以安全模式重启…, 显示 Harness 日志, 检查更新…, 导出 Session 日志…, 关于 DSH Desktop |
+| How | the `Menu` and `Button` primitives, then `window.dshDesktop.runMenuCommand(id)` |
+
+The bridge method is one named capability over the shared command list
+(`src/shared/desktop-menu.ts`); main validates the command and authorizes the
+sender (`assertTrustedDesktopMenuEvent` trusts only the app window). Quit is
+deliberately absent: closing the window quits on Linux, since there is no tray to
+hide into. Dropping the bar also drops its accelerators — `Ctrl+U`,
+`Ctrl+Shift+M`, `Ctrl+Shift+R`, `Ctrl+R`, F11 and the zoom keys — which costs
+Linux little, because its in-app shortcuts were never bound anyway.
+
+Two parts of this are easy to get wrong, and both are pinned. The preload must
+import the shared list as a *type*: a runtime import shared with
+`windows-menu.ts` makes Rollup emit a chunk that **both** preloads `require`, and
+a sandboxed preload cannot load files — the renderer silently loses its entire
+bridge and the Windows caption menu dies with it. And the settings occupant stays
+a source contract, because no unit test can open the dialog and click it.
 
 ## App icons
 
@@ -405,16 +440,26 @@ XDG_CONFIG_HOME=/tmp/dsh-linux-check \
   exposure, and reloading the page removes all three — the failure the shipped
   `0.1.1` package had. The phone button is injected from the DOM observer, so it
   follows an animation frame and stays absent while the window is hidden.
-- **The menu.** `http://127.0.0.1:9333/json` exposes the main process. The main
-  bundle is ESM, so `Menu` is reached through
+- **The menu and its replacement.** `http://127.0.0.1:9333/json` exposes the main
+  process. The main bundle is ESM, so `Menu` is reached through
   `process.getBuiltinModule('module').createRequire(…)( 'electron')` rather than
-  `require`. On Linux `Menu.getApplicationMenu().items` then lists 连接手机…,
-  重启 Harness, 以安全模式重启…, 查看 Harness 日志, 检查更新…,
-  导出 Session 日志…, 关于 DSH Desktop and Quit.
+  `require`. On Linux `Menu.getApplicationMenu()` is then `null` and the window
+  reports `isMenuBarVisible() === false`, so the row is gone. The commands moved
+  to the settings panel header, where a screenshot of the dialog shows 应用菜单
+  beside 打开配置文件, opening 连接手机…, 重启 Harness, 以安全模式重启…,
+  显示 Harness 日志, 检查更新…, 导出 Session 日志… and 关于 DSH Desktop.
+  Running one over the bridge returns its result
+  (`runMenuCommand('zoom-reset')` → `{ ok: true, zoomFactor: 1 }`) and an
+  unknown command is rejected by main, which is what keeps the capability closed.
 
-`test/linux-desktop-menu.test.ts` keeps that menu coverage from being dropped
-again, as a source contract over `installMenu`; `test/preload-bridge-uniqueness.test.ts`
-(from upstream) is the behavioural guard for the bridge.
+`test/linux-desktop-menu.test.ts` keeps the Linux side of that arrangement from
+being dropped again, as a source contract over `installMenu` and the settings
+occupant; `test/preload-sandbox-imports.test.ts` guards the build constraint that
+made the first attempt at it fail — a preload that shares a runtime import with
+another preload entry is split into a chunk a sandboxed preload cannot load, so
+the whole bridge disappears (both here and in the Windows menu view);
+`test/preload-bridge-uniqueness.test.ts` (from upstream) is the behavioural guard
+for the bridge itself.
 
 Frontend geometry is measured the same way, on the renderer that
 `http://127.0.0.1:<debug port>/json` exposes:
