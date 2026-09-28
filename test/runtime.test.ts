@@ -198,7 +198,7 @@ describe('Harness launch contract', () => {
         Path: 'windows-path'
       }
     })
-    expect(options.env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
+    expect(options.env).toHaveProperty('ELECTRON_RUN_AS_NODE', '1')
   })
 
   it('asks the patched Harness to resolve Safe Mode plugins from its installation only', () => {
