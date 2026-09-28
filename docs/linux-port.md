@@ -217,11 +217,64 @@ modified.
   through an extension; hiding the window into a tray that never appears would
   strand the user with no way back to the window. Closing the window therefore
   stops the Harness and any session it is running, as on macOS.
+- **Keyboard shortcuts start unbound.** Harness declares browser defaults for
+  macOS and Windows but none for Linux, so every command resolves an empty
+  `web:linux` profile. This cannot be fixed by borrowing another profile:
+  `register()` validates all six runtime/platform pairs and throws
+  `Unsupported Web shortcut` for any browser-on-Linux binding outside its allow
+  list, which takes `dsh-client-ui-layout` down with it. Binding them needs the
+  native keyboard bridge described below.
 - **macOS-only recovery** — LaunchAgent auditing and quarantine — stays inert:
   both entry points return early on non-macOS platforms.
 - **Directory picker, phone pairing, safe mode, plugin recovery, PPT mode, and
   workbenches** are platform-agnostic and work unchanged. `cloudflared` already
   has Linux x64/arm64 download entries for the optional public tunnel.
+
+## The frontend on Linux
+
+The shell contributes only window chrome; the interface itself is the upstream
+Harness Web UI, so "porting the frontend" means telling that UI which platform it
+is running on. Harness reads `data-platform` from `<html>` before its client
+modules mount, and the desktop patches key their geometry off it.
+
+macOS announces `darwin` (`src/preload/macos-window-chrome.ts`). Windows
+deliberately announces nothing, so the patches express "the host that reserves a
+native caption strip" as the absence of the attribute. Linux announced nothing
+either and therefore inherited the Windows geometry: the sidebar carried a
+`padding-top:32px` meant to clear a caption strip that a natively framed Linux
+window does not have. Measured in a running window, the sidebar's own padding was
+`32px` before and `6px` after, with the conversation header unchanged at `10px`.
+
+`src/preload/linux-window-chrome.ts` now announces `linux`, and the two geometry
+patches scope the Windows rules as
+`html:not([data-platform=darwin]):not([data-platform=linux])` — explicit rather
+than "no attribute", so a future platform that announces itself cannot silently
+inherit the caption strip.
+
+Announcing the platform alone is not enough. Harness throws
+`Desktop keyboard bridge unavailable` when it resolves `runtime: desktop`
+without `window.dshDesktop.keyboard`, and this host exposes no such bridge, so
+the new module also sets `dshDesktopWebShortcuts` exactly as the macOS chrome
+does. `runtime` therefore stays `web` and only the platform becomes explicit.
+
+Sharing the Windows defaults is not an option for the keyboard layer. Ten of the
+eleven commands that register shortcut defaults declare `desktop:linux`,
+`web:macos` and `web:windows`, but only `shortcuts.open` declares `web:linux`,
+because a browser on Linux can be trusted with almost no key combinations.
+`register()` enforces that when a command registers, across every profile:
+
+```js
+if (runtime === "web" && !isWebBindingAllowed(binding, platform))
+  throw new Error(`Unsupported Web shortcut: ${command.id}`);
+```
+
+Falling back from `web:linux` to `web:windows` therefore throws during
+registration, and because `dsh-client-ui-layout` registers `sidebar.left.toggle`
+the whole client module graph fails with `required client modules failed to
+activate` and the app drops into plugin recovery. Closing this gap means
+implementing the native keyboard bridge and letting Linux resolve
+`runtime: desktop` against the `desktop:linux` defaults upstream already ships —
+a deliberate piece of work, not a one-line patch.
 
 ## Verifying a Linux build
 
@@ -283,6 +336,25 @@ XDG_CONFIG_HOME=/tmp/dsh-linux-check \
 `test/linux-desktop-menu.test.ts` keeps that menu coverage from being dropped
 again, as a source contract over `installMenu`; `test/preload-bridge-uniqueness.test.ts`
 (from upstream) is the behavioural guard for the bridge.
+
+Frontend geometry is measured the same way, on the renderer that
+`http://127.0.0.1:<debug port>/json` exposes:
+
+```js
+const root = document.documentElement
+const sidebar = document.querySelector('[data-dsh-sidebar-root]')
+JSON.stringify({
+  platform: root.dataset.platform,                         // 'linux'
+  webShortcuts: root.dataset.dshDesktopWebShortcuts,       // 'true'
+  sidebarPaddingTop: getComputedStyle(sidebar).paddingTop   // '6px', was '32px'
+})
+```
+
+`test/linux-window-chrome.test.ts` covers the same ground without a window: it
+mounts the module in jsdom, evaluates the patched `detectEnvironment` and
+`resolveShortcutDefault` out of the Harness client bundle, and reads the two
+geometry patches. Both halves fail if the escape hatch is dropped or the Linux
+scope is removed from a patch.
 
 The SUID helper and AppArmor profile can only be exercised by a real install,
 because dpkg runs the `postinst` as root:
