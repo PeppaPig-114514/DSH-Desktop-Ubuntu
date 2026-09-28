@@ -97,11 +97,32 @@ The Debian package is the recommended artifact: it keeps the Chromium sandbox,
 installs a desktop entry, and installs the AppArmor profile described below.
 
 ```bash
-sudo apt install ./dist/dsh-desktop-linux-x64.deb
+sudo apt install ./dist/dsh-desktop-linux-amd64.deb
 ```
 
 The application lands in `/opt/DSH Desktop` and can be started from the
 application grid or with `dsh-desktop`.
+
+### Rebuilding and reinstalling
+
+`npm run package:linux` builds the version `package.json` currently declares, so
+two local rebuilds of it are indistinguishable to apt: reinstalling the second
+one answers **"dsh-desktop is already the newest version"** and changes nothing.
+Two ways around that, depending on what you want to know afterwards:
+
+```bash
+# Same version, replaced in place. The app still reports the plain version.
+sudo apt install --reinstall ./dist/dsh-desktop-linux-amd64.deb
+
+# A build stamp in the version, so apt upgrades normally and About shows which
+# build is installed (0.1.1+local.202609281705 and later).
+npm run package:linux:local
+sudo apt install ./dist/dsh-desktop-linux-amd64.deb
+```
+
+`package:linux:local` only adds a build stamp to the package it produces; the
+release workflow sets the version from its tag and calls `package:linux`, so
+released packages keep the plain tag version.
 
 The AppImage is portable but unsigned and runs without the Chromium sandbox:
 
