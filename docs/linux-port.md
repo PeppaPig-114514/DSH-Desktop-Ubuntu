@@ -336,11 +336,21 @@ previous favicon — the mistake is silent until the deb is opened.
 
 `scripts/generate-brand-assets.mjs` keeps the composition the hand-drawn files
 had, so only the mark changed: the app icon is still the same dark rounded tile
-(`#0d1616`, 824px inside a 1024px canvas, 185px radius) with the mark at its
-previous optical height, the favicon is still a blue mark on a light plate, and
-the logo companions are still the mark in black and white. The splash loader
-quantises the same silhouette onto its 4px grid and now spouts its bubbles from
-the whale's back instead of the window's traffic lights.
+(`#0d1616`, 824px inside a 1024px canvas, 185px radius), the favicon is still a
+blue mark on a light plate, and the logo companions are still the mark in black
+and white. Both plates size the mark to 80% of their width. Matching the *height*
+of the outline it replaced was the first attempt and it read as mush: this
+silhouette is about a fifth narrower at the same height, and the eye and fin
+notches that identify it collapse below 24px. The logo canvas has no such slack —
+the previous mark was 176px tall in a 192px frame — so there the height is what
+fits and the width follows the aspect ratio. The splash loader
+quantises the same silhouette onto its grid and now spouts its bubbles from the
+whale's back instead of the window's traffic lights. That grid is 2px on a
+392×220 canvas rather than 4px on 640×360, because `splash.html` draws the mark at
+a fixed 196 CSS px with `image-rendering: pixelated`: the 640px canvas was being
+nearest-neighbour resampled to 30.6%, which put every cell edge between device
+pixels and visibly eroded the silhouette. Twice the display width lands every
+cell on whole device pixels at 2x scaling and on exactly one at 1x.
 
 `test/brand-mark.test.ts` compares `build/brand-mark.svg` against the primitive's
 geometry and fails if either UI seat carries a private copy of the retired path.
