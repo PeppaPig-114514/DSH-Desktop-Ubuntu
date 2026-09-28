@@ -44,6 +44,7 @@
     "package:mac:x64": "node scripts/verify-target.mjs darwin x64 && npm run build && electron-builder --mac --x64 --publish never",
     "package:win": "node scripts/verify-target.mjs win32 x64 && npm run build && node scripts/electron-builder-windows.mjs --win --x64 --publish never",
     "package:linux": "node scripts/verify-target.mjs linux x64 && npm run build && electron-builder --linux --x64 --publish never",
+    "package:linux:local": "node scripts/verify-target.mjs linux x64 && npm run build && electron-builder --linux --x64 --publish never --config.extraMetadata.version=$(node scripts/local-build-version.mjs)",
     "package:linux:dir": "node scripts/verify-target.mjs linux x64 && npm run build && electron-builder --linux --x64 --dir --publish never",
     "package:dev:linux": "node scripts/verify-target.mjs linux x64 && npm run build && electron-builder --linux --x64 --publish never --config electron-builder.dev.cjs",
     "ppt:build": "node scripts/prepare-ppt-runtime.mjs",
