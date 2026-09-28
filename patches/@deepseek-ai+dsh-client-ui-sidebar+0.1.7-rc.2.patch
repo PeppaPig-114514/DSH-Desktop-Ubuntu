@@ -7,7 +7,7 @@ index 1c2bc08..9875cfd 100644
  			tag.dataset.plugin = "@deepseek-ai/dsh-client-ui-sidebar";
  			tag.dataset.pluginCss = tagId;
 -			tag.textContent = css;
-+			tag.textContent = css + "html:not([data-platform=darwin]) [data-dsh-sidebar-root][data-dsh-sidebar-wide=\"true\"]{padding-top:32px}[data-dsh-sidebar-brand-identity]{gap:4px}";
++			tag.textContent = css + "html:not([data-platform=darwin]):not([data-platform=linux]) [data-dsh-sidebar-root][data-dsh-sidebar-wide=\"true\"]{padding-top:32px}[data-dsh-sidebar-brand-identity]{gap:4px}";
  			document.head.appendChild(tag);
  		}
  		var SidebarRoot_module_css_default = {

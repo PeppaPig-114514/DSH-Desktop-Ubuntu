@@ -11,6 +11,12 @@ import { isPluginLoadError } from './plugin-error-view'
 import { findBootFailureText } from './boot-failure'
 import { mountWindowsTitlebarLayout } from './windows-titlebar'
 import { mountMacosWindowChrome } from './macos-window-chrome'
+import { mountLinuxWindowChrome } from './linux-window-chrome'
+
+if (process.platform === 'linux') {
+  const dispose = mountLinuxWindowChrome(document)
+  window.addEventListener('unload', dispose, { once: true })
+}
 
 if (process.platform === 'darwin') {
   const dispose = mountMacosWindowChrome(document, listener => {
