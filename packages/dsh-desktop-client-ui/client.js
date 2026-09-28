@@ -9,14 +9,13 @@ window.__ModuleLoader__.load({
     const { BrandWordmark, Button, FishLogo, Menu, MenuItemButton } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     // The sidebar brand seat shows Harness's official whale — the same primitive
-    // the conversation hero uses — so both seats carry one mark. FishLogo sizes
-    // by width, and BRAND_MARK_HEIGHT is the optical height the previous window
-    // mark occupied next to the wordmark.
-    const BRAND_MARK_HEIGHT = 17
-    const FISH_LOGO_ASPECT = 23.16 / 17.04
+    // the conversation hero uses — so both seats carry one mark. FishLogo sizes by
+    // width, and the width is the one the retired window mark occupied in this
+    // seat (898/564 * 17), so the brand lockup keeps the space it had.
+    const BRAND_MARK_WIDTH = 27.1
 
     function DesktopBrandMark() {
-      return React.createElement(FishLogo, { size: BRAND_MARK_HEIGHT * FISH_LOGO_ASPECT })
+      return React.createElement(FishLogo, { size: BRAND_MARK_WIDTH })
     }
 
     function DesktopBrandName() {

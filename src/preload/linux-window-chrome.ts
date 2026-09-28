@@ -34,7 +34,7 @@ const CONTROLS_ID = 'dsh-desktop-linux-window-controls'
 const STATE_CHANNEL = 'desktop-window:state-changed'
 
 /** The caption band the controls sit in. */
-const CONTROLS_WIDTH = 96
+const CONTROLS_WIDTH = 100
 const CONTROLS_HEIGHT = 32
 const CONTROLS_TOP = 8
 const CONTROLS_RIGHT = 12
@@ -61,13 +61,13 @@ const COPY = {
 type Copy = (typeof COPY)['en']
 
 const MINIMIZE_ICON =
-  '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
+  '<svg viewBox="0 0 12 12" width="14" height="14" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
 const MAXIMIZE_ICON =
-  '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.2" stroke="currentColor" stroke-width="1.2"/></svg>'
+  '<svg viewBox="0 0 12 12" width="14" height="14" aria-hidden="true"><rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.2" stroke="currentColor" stroke-width="1.2"/></svg>'
 const RESTORE_ICON =
-  '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="2.6" y="4.4" width="5" height="5" rx="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 4.4v-.9a1.1 1.1 0 0 1 1.1-1.1h2.7a1.1 1.1 0 0 1 1.1 1.1v2.7a1.1 1.1 0 0 1-1.1 1.1h-.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
+  '<svg viewBox="0 0 12 12" width="14" height="14" aria-hidden="true"><rect x="2.6" y="4.4" width="5" height="5" rx="1.1" stroke="currentColor" stroke-width="1.2"/><path d="M4.8 4.4v-.9a1.1 1.1 0 0 1 1.1-1.1h2.7a1.1 1.1 0 0 1 1.1 1.1v2.7a1.1 1.1 0 0 1-1.1 1.1h-.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
 const CLOSE_ICON =
-  '<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3.4 3.4l5.2 5.2M8.6 3.4l-5.2 5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
+  '<svg viewBox="0 0 12 12" width="14" height="14" aria-hidden="true"><path d="M3.4 3.4l5.2 5.2M8.6 3.4l-5.2 5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'
 
 /** The desktop host's own language, taken from the page Harness renders. */
 function copyFor(doc: Document): Copy {
@@ -143,13 +143,13 @@ function installStyle(doc: Document): void {
       -webkit-app-region: no-drag;
     }
     #${CONTROLS_ID} button {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       padding: 0;
       display: grid;
       place-items: center;
       border: 0;
-      border-radius: 6px;
+      border-radius: 7px;
       background: transparent;
       color: var(--dsw-alias-label-secondary, rgba(32, 33, 36, 0.62));
       cursor: default;
@@ -170,11 +170,15 @@ function installStyle(doc: Document): void {
       background: #d93025;
       color: #ffffff;
     }
-    /* The bands upstream marks as window-drag are the window's handle, and they
-       keep their right edge clear of the controls. */
+    /* The bands upstream marks as window-drag are the window's handle. Only the
+       ones the controls can reach reserve room on their right: the sidebar's own
+       row sits against the opposite edge, and padding it squeezed the brand
+       lockup and dragged its collapse button across the column. */
     [data-window-drag] {
       -webkit-app-region: drag;
       box-sizing: border-box;
+    }
+    [data-window-drag]:not([data-dsh-sidebar-root] *) {
       padding-right: ${BAND_CLEARANCE}px !important;
     }
     [data-window-drag] button,
