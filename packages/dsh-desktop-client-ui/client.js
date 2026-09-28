@@ -6,7 +6,7 @@ window.__ModuleLoader__.load({
     Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
 
     const React = require('react')
-    const { BrandWordmark, FishLogo, MenuItemButton } = require('@deepseek-ai/dsh-client-ui-primitives')
+    const { BrandWordmark, Button, FishLogo, Menu, MenuItemButton } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     // The sidebar brand seat shows Harness's official whale — the same primitive
     // the conversation hero uses — so both seats carry one mark. FishLogo sizes
@@ -94,8 +94,74 @@ window.__ModuleLoader__.load({
       }, unread ? (chinese ? '标为已读' : 'Mark as read') : (chinese ? '标为未读' : 'Mark as unread'))
     }
 
-    const inject = ['slots', 'remote.session', 'sessions', 'uiWorkspace']
+    // Desktop commands the native menu bar used to carry. A GTK window always
+    // draws that bar as a row of top-level menus, so Linux installs none (see
+    // installMenu in src/main/index.ts) and the settings panel header is where
+    // those commands live instead.
+    const APP_MENU_NS = 'desktop-app-menu'
+    const APP_MENU_ENTRIES = [
+      ['connect-phone', 'connectPhone'],
+      ['restart-harness', 'restartHarness'],
+      ['safe-mode', 'safeMode'],
+      ['show-harness-log', 'showHarnessLog'],
+      ['check-for-updates', 'checkForUpdates'],
+      ['export-session', 'exportSession'],
+      ['about', 'about']
+    ]
+    const APP_MENU_COPY = {
+      zh: {
+        trigger: '应用菜单',
+        connectPhone: '连接手机…',
+        restartHarness: '重启 Harness',
+        safeMode: '以安全模式重启…',
+        showHarnessLog: '显示 Harness 日志',
+        checkForUpdates: '检查更新…',
+        exportSession: '导出 Session 日志…',
+        about: '关于 DSH Desktop'
+      },
+      en: {
+        trigger: 'Application menu',
+        connectPhone: 'Connect Phone…',
+        restartHarness: 'Restart Harness',
+        safeMode: 'Restart as Safe Mode…',
+        showHarnessLog: 'Show Harness Log',
+        checkForUpdates: 'Check for Updates…',
+        exportSession: 'Export Session Log…',
+        about: 'About DSH Desktop'
+      }
+    }
+
+    function DesktopAppMenu({ runMenuCommand, t }) {
+      const [open, setOpen] = React.useState(false)
+      if (typeof window.dshDesktop?.runMenuCommand !== 'function') return null
+      return React.createElement(Menu, {
+        open,
+        autoFocus: true,
+        align: 'end',
+        portal: true,
+        compact: true,
+        items: APP_MENU_ENTRIES.map(([id, key]) => ({ id, label: t(key) })),
+        onClose: () => setOpen(false),
+        onSelect: (id) => {
+          setOpen(false)
+          void Promise.resolve().then(() => runMenuCommand(id)).catch((reason) => {
+            window.alert(reason instanceof Error ? reason.message : String(reason))
+          })
+        },
+        anchor: React.createElement(Button, {
+          variant: 'outline',
+          size: 'sm',
+          'aria-haspopup': 'menu',
+          'aria-expanded': open ? 'true' : 'false',
+          onClick: () => setOpen((value) => !value)
+        }, t('trigger'))
+      })
+    }
+
+    const inject = ['slots', 'remote.session', 'sessions', 'uiWorkspace', 'locale']
     function apply(ctx) {
+      ctx.effect(() => ctx.locale.register(APP_MENU_NS, APP_MENU_COPY), 'desktop app menu locale')
+      const t = ctx.locale.bind(APP_MENU_NS)
       ctx.effect(() => {
         const id = 'dsh-desktop-preset-toolbar-style'
         if (document.getElementById(id)) return
@@ -177,6 +243,17 @@ window.__ModuleLoader__.load({
           id: 'desktop-unread-session',
           order: 350
         }, UnreadSessionMenuItem)
+      )
+      ctx.slots.inject('settings.action', () =>
+        ctx.slots.register({
+          name: 'settings.action',
+          id: 'desktop-app-menu',
+          order: 100,
+          inject: () => ({
+            runMenuCommand: (command) => window.dshDesktop.runMenuCommand(command),
+            t
+          })
+        }, DesktopAppMenu)
       )
     }
 

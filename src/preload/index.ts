@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AvailableRelease, UpdateStatus } from '../shared/contracts'
+// Type-only on purpose: a value import shared with another preload entry makes
+// Rollup emit a chunk both of them `require` at load, and a sandboxed preload
+// cannot load files at all — the whole bridge disappears. main validates the
+// command at runtime (assertTrustedDesktopMenuEvent plus isDesktopMenuCommand).
+import type { DesktopMenuCommand } from '../shared/desktop-menu'
 import { setupDesktopStoragePersistence } from './desktop-storage'
 import {
   isUpdateDismissed,
@@ -574,7 +579,14 @@ contextBridge.exposeInMainWorld(
     setBuiltInImageGenerationEnabled: (enabled: boolean): Promise<{ ok: boolean; enabled?: boolean; restartRequired?: boolean; reason?: string }> =>
       ipcRenderer.invoke('desktop-host-plugin:set-enabled', enabled),
     uninstallMarket: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('market:uninstall'),
-    openInFinder: (path: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('harness:open-in-finder', path)
+    openInFinder: (path: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('harness:open-in-finder', path),
+    // Runs one of the desktop's own menu commands, for the settings panel
+    // header that replaces the Linux menu bar. One named capability over a
+    // closed command set rather than a channel passthrough: main validates the
+    // command against the shared list and authorizes the sender
+    // (assertTrustedDesktopMenuEvent trusts only this window).
+    runMenuCommand: (command: DesktopMenuCommand): Promise<{ ok: boolean; zoomFactor?: number }> =>
+      ipcRenderer.invoke('desktop-menu:execute', command)
   })
 )
 

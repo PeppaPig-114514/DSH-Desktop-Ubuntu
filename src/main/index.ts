@@ -3195,17 +3195,18 @@ function installMenu(): void {
       }
     }
   }
-  // Windows reaches this from its custom titlebar menu, and macOS from the
-  // application menu. Linux mounts neither chrome — `mountWindowsTitlebarLayout`
-  // and `mountMacosWindowChrome` are both platform-gated — so without an entry
-  // here the command exists but no menu offers it.
-  const exportSessionEntry: Electron.MenuItemConstructorOptions = {
-    label: isChinese ? '导出 Session 日志…' : 'Export Session Log…',
-    click: () => void executeDesktopMenuCommand('export-session').catch(showUnexpectedError)
+  // A GTK window draws the application menu as a row of top-level menus across
+  // its top-left, and Electron cannot keep the menu while hiding that row the
+  // way Windows does with `autoHideMenuBar`. Linux therefore installs no menu at
+  // all, and the commands it used to be the only home for — Export Session Log,
+  // About, and the rest of the Harness group — are registered in the settings
+  // panel header by packages/dsh-desktop-client-ui. Removing the row removes
+  // those accelerators too; the platform had no other working shortcuts anyway
+  // (see "The frontend on Linux").
+  if (process.platform === 'linux') {
+    Menu.setApplicationMenu(null)
+    return
   }
-  // The native menu bar is the only menu on Linux; the two other chromes are
-  // mounted elsewhere or not at all.
-  const nativeMenuOnly = process.platform === 'linux'
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
       ? [
@@ -3258,16 +3259,10 @@ function installMenu(): void {
               label: checkForUpdatesLabel,
               accelerator: 'CmdOrCtrl+U',
               click: () => void checkForUpdates(true).catch(showUnexpectedError)
-            },
-            ...(nativeMenuOnly ? [exportSessionEntry] : [])
+            }
           ]),
-        ...(process.platform === 'darwin'
-          ? []
-          : [
-            { type: 'separator' as const },
-            ...(nativeMenuOnly ? [aboutEntry, { type: 'separator' as const }] : []),
-            { role: 'quit' as const }
-          ])
+        { type: 'separator' },
+        { role: 'quit' as const }
       ]
     },
     {
