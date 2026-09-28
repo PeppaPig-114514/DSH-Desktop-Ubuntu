@@ -322,11 +322,11 @@ false` for that platform only — and draws the controls itself:
 
 | | |
 | --- | --- |
-| Controls | minimize, maximize/restore and close, fixed at the window's top-right and aligned with the conversation header's title row |
+| Controls | minimize, maximize/restore and close, fixed at the window's top-right and aligned with the conversation header's title row. 32px square — the tallest that still fits a 30px title row — with 14px glyphs |
 | Source | `src/preload/linux-window-chrome.ts`, mounted on every page of the window — including recovery and Safe Mode, where no Harness slot exists to host them |
 | IPC | `desktop-window:minimize`, `:toggle-maximize`, `:close`, `:get-state`, plus a pushed `:state-changed` so the icon follows a double-click or the window manager |
 | Drag | the bands upstream marks `data-window-drag` (the conversation header, the sidebar's logo row and the plugin-manager headers); their interactive elements are switched back to `no-drag` |
-| Room | those bands reserve `BAND_CLEARANCE` on their right, so a page's own header actions cannot end up under the controls |
+| Room | only the bands the controls can reach reserve `BAND_CLEARANCE` on their right, so a page's own header actions cannot end up under the controls. The sidebar's row is excluded: it sits at the opposite edge, and padding it squeezed the brand lockup and pulled its collapse button across the column |
 
 The session actions that used to share the title row — open in file manager, the
 ⋯ menu and the right-sidebar toggle — move down to the tab row, which is the one
@@ -384,7 +384,13 @@ The mark is now Harness's own whale, taken from
 `@deepseek-ai/dsh-client-ui-primitives` — `FISH_LOGO_PATH` with its native
 23.16×17.04 viewBox. There is one authoritative copy in the repository,
 `build/brand-mark.svg`, and the UI seats render the shared `FishLogo` primitive
-rather than a private path:
+rather than a private path. Both seats size that primitive by *width*, matching
+the footprint the retired mark occupied (`898/564 × 17` in the sidebar,
+`898/564 × 18` in the onboarding header): this silhouette is narrower than the
+one it replaced, so keeping the height left the brand lockup visibly smaller
+than it had been.
+
+Regenerating anything downstream of the mark:
 
 ```bash
 npm run brand:generate    # build/brand-mark.svg -> app-icon.png, icon.png, logo-*.png
