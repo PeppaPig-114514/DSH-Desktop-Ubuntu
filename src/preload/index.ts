@@ -16,11 +16,10 @@ import { isPluginLoadError } from './plugin-error-view'
 import { findBootFailureText } from './boot-failure'
 import { markWindowsTitlebar, mountWindowsTitlebarLayout } from './windows-titlebar'
 import { mountMacosWindowChrome } from './macos-window-chrome'
-import { mountLinuxWindowChrome } from './linux-window-chrome'
+import { markLinuxPlatform, mountLinuxWindowChrome } from './linux-window-chrome'
 
 if (process.platform === 'linux') {
-  const dispose = mountLinuxWindowChrome(document)
-  window.addEventListener('unload', dispose, { once: true })
+  markLinuxPlatform(document)
 }
 
 if (process.platform === 'darwin') {
@@ -387,6 +386,10 @@ ipcRenderer.on('mobile:status-changed', (_event, status: { connected?: boolean }
 function initializeUi(): void {
   if (process.platform === 'win32') {
     mountWindowsTitlebarLayout({ document, ipcRenderer })
+  }
+  if (process.platform === 'linux') {
+    const dispose = mountLinuxWindowChrome({ document, ipcRenderer })
+    window.addEventListener('unload', dispose, { once: true })
   }
   mount()
   mountAbout()
