@@ -291,17 +291,59 @@ at it was wrong twice over:
 - The artwork itself differed from Windows and macOS, which build `icon.ico` and
   `icon.icns` from `build/app-icon.png`.
 
-`linux.icon` is now `build/icons`, and `npm run icons:generate:linux` fills it
-with the freedesktop size ladder (16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192,
-256, 512) rendered from `build/app-icon.png` — the same source as the Windows and
-macOS icons, and the file `resources/icon.png` already used for the window icon.
-Both targets install all thirteen sizes, and the AppImage points `.DirIcon` at
-the 512px entry.
+`linux.icon` is now `build/icons`, filled with the freedesktop size ladder (16,
+22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512) rendered from
+`build/app-icon.png` — the same source as the Windows and macOS icons, and the
+file `resources/icon.png` already used for the window icon. Both targets install
+all thirteen sizes, and the AppImage points `.DirIcon` at the 512px entry.
 
-Unlike `scripts/generate-app-icons.mjs`, which shells out to the macOS-only
-`sips`/`iconutil`, the Linux generator uses `sharp` and runs on any host. The
-generated PNGs are committed beside `icon.ico` and `icon.icns`, and
-`test/linux-icon-set.test.ts` fails if they drift from `build/app-icon.png`.
+`npm run icons:generate` produces all three formats from `build/app-icon.png`.
+It used to shell out to the macOS-only `sips`/`iconutil` for the Windows and
+macOS containers, which meant a Linux contributor could not refresh the committed
+icons at all; the containers are written in Node now, so one command produces the
+same set on any host. The ICNS carries the PNG chunk types `iconutil` emits
+(`ic07`–`ic14`); the long-obsolete raw `ic04`/`ic05` frames are not reproduced.
+`test/app-icon-set.test.ts` reads every ICO frame and ICNS chunk back out,
+checks the container length macOS trusts, checks each frame against its declared
+size, and fails if the committed ladder drifts from `build/app-icon.png`.
+
+## The brand mark
+
+DSH Desktop shipped its own mark — a whale drawn as a window with a tail
+(`BRAND_MARK_PATH`) — and registered it over both of Harness's brand seats, so
+the sidebar, the onboarding header and the splash loader all showed it while the
+conversation hero showed the official whale. Three copies of that path existed
+and the rasters were hand-drawn, which is how the icon theme ended up with a
+light artwork file that matched none of the other icons.
+
+The mark is now Harness's own whale, taken from
+`@deepseek-ai/dsh-client-ui-primitives` — `FISH_LOGO_PATH` with its native
+23.16×17.04 viewBox. There is one authoritative copy in the repository,
+`build/brand-mark.svg`, and the UI seats render the shared `FishLogo` primitive
+rather than a private path:
+
+```bash
+npm run brand:generate    # build/brand-mark.svg -> app-icon.png, icon.png, logo-*.png
+npm run icons:generate    # app-icon.png -> icon.ico, icon.icns, build/icons/*
+npm run loader:generate   # build/brand-mark.svg -> the two splash loaders
+```
+
+`brand:generate` also reruns `scripts/install-brand-assets.mjs`, which is the
+postinstall step that propagates `icon.png` and the two logo files into
+`node_modules/@deepseek-ai/dsh-web-frontend/dist`. Packaging copies those, not
+the `build/` originals, so regenerating the artwork without that step ships the
+previous favicon — the mistake is silent until the deb is opened.
+
+`scripts/generate-brand-assets.mjs` keeps the composition the hand-drawn files
+had, so only the mark changed: the app icon is still the same dark rounded tile
+(`#0d1616`, 824px inside a 1024px canvas, 185px radius) with the mark at its
+previous optical height, the favicon is still a blue mark on a light plate, and
+the logo companions are still the mark in black and white. The splash loader
+quantises the same silhouette onto its 4px grid and now spouts its bubbles from
+the whale's back instead of the window's traffic lights.
+
+`test/brand-mark.test.ts` compares `build/brand-mark.svg` against the primitive's
+geometry and fails if either UI seat carries a private copy of the retired path.
 
 ## Verifying a Linux build
 
@@ -393,7 +435,7 @@ dpkg-deb -c dist/dsh-desktop-linux-amd64.deb | grep hicolor
 
 Expect one `apps/dsh-desktop.png` under each standard size directory and no
 `hicolor/<nonstandard width>/`. Every packaged file's pixel dimensions must match
-the directory it sits in; `test/linux-icon-set.test.ts` asserts that for the
+the directory it sits in; `test/app-icon-set.test.ts` asserts that for the
 source ladder and pins it to `build/app-icon.png`.
 
 The SUID helper and AppArmor profile can only be exercised by a real install,
