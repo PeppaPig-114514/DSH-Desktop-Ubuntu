@@ -235,12 +235,20 @@ modified.
   chromes — are registered in the settings panel header (`settings.action`) by
   `packages/dsh-desktop-client-ui`. Dropping the bar also drops its
   accelerators; see the keyboard note below for why that costs Linux little.
-- **Tray icon and close-to-tray** stay Windows-only (`ensureTray()` and
-  `shouldKeepRunningInBackground()`), so closing the window quits the app. A
-  Linux tray needs a StatusNotifier host, which stock GNOME only provides
-  through an extension; hiding the window into a tray that never appears would
-  strand the user with no way back to the window. Closing the window therefore
-  stops the Harness and any session it is running, as on macOS.
+- **Tray icon and close-to-tray work on Linux** (`ensureTray()` and
+  `shouldKeepRunningInBackground()`), so closing the window hides it and the
+  Harness keeps running; the tray menu offers Show DSH Desktop and Exit. The
+  icon comes from the packaged `resources/icon.png`. Ubuntu provides the
+  StatusNotifier host through its AppIndicator extension and ships
+  `libayatana-appindicator3`, so the icon lands in the top bar without extra
+  packages; check the host with
+  `gdbus call --session --dest org.kde.StatusNotifierWatcher --object-path /StatusNotifierWatcher --method org.freedesktop.DBus.Properties.Get org.kde.StatusNotifierWatcher IsStatusNotifierHostRegistered`.
+  If the icon cannot be created at all, the window keeps its native close
+  behavior — hiding into a tray that never appears would strand the user with no
+  way back to the window, so `shouldKeepRunningInBackground()` also requires a
+  live icon. Note that a *page* calling `window.close()` is not the close button:
+  Electron 43 destroys such a window without emitting the window's `close` event,
+  so that path still ends the app.
 - **Keyboard shortcuts start unbound.** Harness declares browser defaults for
   macOS and Windows but none for Linux, so every command resolves an empty
   `web:linux` profile. This cannot be fixed by borrowing another profile:
@@ -321,9 +329,9 @@ upstream's 打开配置文件:
 
 The bridge method is one named capability over the shared command list
 (`src/shared/desktop-menu.ts`); main validates the command and authorizes the
-sender (`assertTrustedDesktopMenuEvent` trusts only the app window). Quit is
-deliberately absent: closing the window quits on Linux, since there is no tray to
-hide into. Dropping the bar also drops its accelerators — `Ctrl+U`,
+sender (`assertTrustedDesktopMenuEvent` trusts only the app window). Quit stays
+out of this list because the tray menu owns Exit, and closing the window only
+hides it. Dropping the bar also drops its accelerators — `Ctrl+U`,
 `Ctrl+Shift+M`, `Ctrl+Shift+R`, `Ctrl+R`, F11 and the zoom keys — which costs
 Linux little, because its in-app shortcuts were never bound anyway.
 
@@ -478,10 +486,10 @@ The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
 - `apparmor_parser -Q --skip-cache` accepts `build/dsh-desktop.apparmor` with the
   installed path substituted, including the space in `/opt/DSH Desktop`.
 
-After the upstream merge, `npm run typecheck`, `npm run build`, and `npm test`
-(1502 passed, 4 skipped) were re-run on the same host. Two things the test suite
-cannot reach need a running app, and both were read back from a development
-instance started with:
+`npm run typecheck`, `npm run build`, and `npm test` are re-run on the same host
+with the tray change in place (1541 passed, 4 skipped, 0 failures). Three things
+the test suite cannot reach need a running app, and they were read back from a
+development instance started with:
 
 ```bash
 XDG_CONFIG_HOME=/tmp/dsh-linux-check \
@@ -507,6 +515,17 @@ XDG_CONFIG_HOME=/tmp/dsh-linux-check \
   Running one over the bridge returns its result
   (`runMenuCommand('zoom-reset')` → `{ ok: true, zoomFactor: 1 }`) and an
   unknown command is rejected by main, which is what keeps the capability closed.
+- **The tray and close-to-tray.** Closing the window the way the ✕ does —
+  `process.mainModule.require('electron').BrowserWindow.getAllWindows()[0].close()`
+  over `http://127.0.0.1:9333/json` — leaves it hidden instead of closed
+  (`isVisible() === false`, `isDestroyed() === false`) while the app process, its
+  Harness child and the StatusNotifier item all stay up; `win.show()` brings the
+  window back, and `app.quit()` (what the tray's Exit item runs) stops the
+  Harness, drops the item and exits cleanly. The item is identified by resolving
+  each entry of `RegisteredStatusNotifierItems` to its PID and matching the app
+  process. Checked separately: a *page-side* `window.close()` still ends the app,
+  because Electron 43 destroys that window without emitting its `close` event —
+  hence the close button, not a script, is the path this behavior covers.
 
 `test/linux-desktop-menu.test.ts` keeps the Linux side of that arrangement from
 being dropped again, as a source contract over `installMenu` and the settings

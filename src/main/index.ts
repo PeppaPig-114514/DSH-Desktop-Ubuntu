@@ -1007,20 +1007,40 @@ function restoreMainWindow(): void {
   }
 }
 
+function trayPlatform(): boolean {
+  // Linux shows the icon through a StatusNotifier host, which Ubuntu provides
+  // with the AppIndicator extension; macOS keeps its own dock/window model.
+  return process.platform === 'win32' || process.platform === 'linux'
+}
+
+function hasUsableTray(): boolean {
+  return tray !== undefined && !tray.isDestroyed()
+}
+
 function ensureTray(): void {
-  if (process.platform !== 'win32' || tray) return
+  if (!trayPlatform() || hasUsableTray()) return
 
   const locale = harnessLocale()
-  tray = new Tray(desktopIconPath())
-  tray.setToolTip('DSH Desktop')
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: locale === 'zh' ? '显示 DSH Desktop' : 'Show DSH Desktop', click: restoreMainWindow },
-      { type: 'separator' },
-      { label: locale === 'zh' ? '退出' : 'Exit', click: () => app.quit() }
-    ])
-  )
-  tray.on('click', restoreMainWindow)
+  try {
+    const icon = new Tray(desktopIconPath())
+    icon.setToolTip('DSH Desktop')
+    icon.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: locale === 'zh' ? '显示 DSH Desktop' : 'Show DSH Desktop', click: restoreMainWindow },
+        { type: 'separator' },
+        { label: locale === 'zh' ? '退出' : 'Exit', click: () => app.quit() }
+      ])
+    )
+    // A StatusNotifier host does not deliver click events on every desktop, so
+    // the window is always reachable through the context menu above.
+    icon.on('click', restoreMainWindow)
+    tray = icon
+  } catch (error) {
+    // No icon means no way back to a hidden window: keep the native close
+    // behavior and record why, instead of hiding the window into nowhere.
+    tray = undefined
+    console.warn('[desktop] tray icon unavailable; the window will keep its native close behavior:', error)
+  }
 }
 
 function createWindow(): BrowserWindow {
@@ -1100,7 +1120,7 @@ function createWindow(): BrowserWindow {
   window.on('close', (event) => {
     desktopStorageManager?.flushSync()
     windowStateManager?.flushSync()
-    if (!shouldKeepRunningInBackground(process.platform, quitting)) return
+    if (!shouldKeepRunningInBackground(process.platform, quitting, hasUsableTray())) return
     event.preventDefault()
     window.hide()
   })
@@ -3795,8 +3815,9 @@ if (isDaemonLaunch(process.env, process.platform)) {
       desktopStorageManager?.flushSync()
       stopUpdateManager()
       // Windows leaves the tray icon behind as a ghost until the user hovers
-      // over it unless it is destroyed explicitly before the process exits.
-      if (tray && !tray.isDestroyed()) tray.destroy()
+      // over it, and a Linux StatusNotifier item outlives the process until the
+      // host refreshes it, so destroy the icon explicitly before exiting.
+      if (hasUsableTray()) tray?.destroy()
       tray = undefined
       repairAgentService?.dispose()
       repairAgentService = undefined
