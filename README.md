@@ -107,9 +107,9 @@ open -a "DSH Desktop" --args --safe-mode
 | macOS Intel | Signed and notarized DMG/ZIP | Supported |
 | Windows x64 | Code-signed NSIS installer | Supported |
 | Windows ARM64 | — | Not currently supported |
-| Linux | — | Not currently supported |
+| Linux x64 | Unsigned deb and AppImage built from source | Supported locally, see the [Linux port guide](docs/linux-port.md) |
 
-Harness includes target-native dependencies, so every release artifact is built on the matching operating system and architecture.
+Harness includes target-native dependencies, so every release artifact is built on the matching operating system and architecture. Linux artifacts are not published by the release workflow; build them on the Linux machine that will run the app.
 
 ## Development and architecture
 
