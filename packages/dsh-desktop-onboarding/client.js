@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const { useCallback, useEffect, useRef, useState } = React
-    const { Button, Modal, IconGlobeOutline14 } = require('@deepseek-ai/dsh-client-ui-primitives')
+    const { Button, FishLogo, Modal, IconGlobeOutline14 } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     const NS = 'desktop-onboarding'
     // Retained as the acknowledgement payload for settings compatibility.
@@ -20,10 +20,9 @@ window.__ModuleLoader__.load({
     // schema; the value object the mirror hands back has exactly this shape.
     const WIZARD_ACK_FIELD = 'wizardVersion'
 
-    // DSH Desktop whale mark (same artwork as the sidebar brand seat), drawn
-    // in currentColor so it follows the header text color in both themes.
-    const BRAND_MARK_VIEWBOX = { x: 42, y: 218, width: 898, height: 564 }
-    const BRAND_MARK_PATH = 'M478.318 218C605.318 218 683.318 287 687.318 404L691.318 472C693.318 525 697.319 556 726.318 574C746.318 587 774.318 585 790.318 562C799.318 550 802.318 539 792.318 534C747.319 513 727.318 472 738.318 428C739.652 420 742.652 418.667 747.318 424C774.318 450 815.318 460 831.318 501C855.318 457 898.318 456 930.318 436C936.318 431.333 939.318 433.333 939.318 442C938.318 496 903.318 535 850.318 547C841.318 570 833.318 592 819.318 622C773.318 723 661.318 782 491.318 782H294.318C161.319 782 74.3183 714 53.3184 592C41.3184 526 38.3184 433 50.3184 375C70.3184 277 113.82 218 234.32 218H478.318ZM571.82 350.5C469.82 333.5 277.82 329.5 164.82 350.5C138.82 355.5 114.318 379 110.318 404C100.318 451 102.318 551 124.318 596C155.318 660 214.319 697 315.318 705C324.318 678 346.319 662 376.318 662C404.318 662 427.318 678 435.318 705C493.318 699 526.318 680 562.318 652C621.318 606 633.749 527.103 633.749 424C633.749 385.144 604.82 355.5 571.82 350.5ZM179.32 264C167.722 264 158.32 273.402 158.32 285C158.32 296.598 167.722 306 179.32 306C190.918 306 200.32 296.598 200.32 285C200.32 273.402 190.918 264 179.32 264ZM245.551 264C233.953 264 224.551 273.402 224.551 285C224.551 296.598 233.953 306 245.551 306C257.149 306 266.551 296.598 266.551 285C266.551 273.402 257.149 264 245.551 264ZM311.782 264C300.184 264 290.782 273.402 290.782 285C290.782 296.598 300.184 306 311.782 306C323.38 306 332.782 296.598 332.782 285C332.782 273.402 323.38 264 311.782 264Z'
+    // Harness's official whale, at the optical height the previous window mark
+    // occupied in the header. FishLogo sizes by width.
+    const FISH_LOGO_ASPECT = 23.16 / 17.04
 
     // GitHub mark (Octicons mark-github, 16px grid), drawn in currentColor.
     const GITHUB_MARK_PATH = 'M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z'
@@ -102,16 +101,7 @@ window.__ModuleLoader__.load({
         React.createElement(
           'span',
           { className: 'dshDeskOnbBrandMark', 'aria-hidden': 'true' },
-          React.createElement(
-            'svg',
-            {
-              width: height * BRAND_MARK_VIEWBOX.width / BRAND_MARK_VIEWBOX.height,
-              height,
-              viewBox: BRAND_MARK_VIEWBOX.x + ' ' + BRAND_MARK_VIEWBOX.y + ' ' + BRAND_MARK_VIEWBOX.width + ' ' + BRAND_MARK_VIEWBOX.height,
-              fill: 'none'
-            },
-            React.createElement('path', { d: BRAND_MARK_PATH, fill: 'currentColor' })
-          )
+          React.createElement(FishLogo, { size: height * FISH_LOGO_ASPECT })
         ),
         React.createElement('span', { className: 'dshDeskOnbBrandName' }, t('brandName')),
         React.createElement('span', { className: 'dshDeskOnbBrandBy' }, t('brandBy'))
