@@ -465,6 +465,7 @@
     },
     "win": {
       "icon": "build/icon.ico",
+      "files": ["!node_modules/node/**/*"],
       "verifyUpdateCodeSignature": true,
       "signtoolOptions": {
         "publisherName": "Beijing Shuju Xiangsu Intelligence Technology Co., Ltd.",

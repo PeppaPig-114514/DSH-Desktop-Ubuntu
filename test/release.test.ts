@@ -467,7 +467,7 @@ describe('GitHub release contract', () => {
     expect(workflow).toContain('smoke-signed-windows:')
     expect(workflow).toContain('smoke-signed-windows-installer.ps1')
     expect(workflow).toContain("needs.smoke-signed-windows.result == 'success'")
-    expect(workflow).toContain("if (-not (Test-Path $packagedNode)) { throw 'Packaged Windows node.exe is missing.' }")
+    expect(workflow).toContain("if (Test-Path $packagedNode) { throw 'Standalone Windows node.exe must not be packaged.' }")
     expect(workflow).toContain('version="${PRERELEASE_TAG#v}"')
     expect(workflow).toContain('version="${SIGNED_VERSION#v}"')
     expect(workflow).not.toContain('version="${PRERELEASE_TAG:-${GITHUB_REF_NAME#v}}"')
