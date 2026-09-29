@@ -43,7 +43,10 @@ that remain — unbound in-app keyboard shortcuts, unsigned packages, and the fe
 macOS/Windows-only plugins — are listed with their verification status in the
 [Linux port guide](docs/linux-port.md).
 
-Build and install from source on Ubuntu 24.04+ (x64):
+Prebuilt unsigned packages are attached to this repository's
+[Releases](https://github.com/PeppaPig-114514/DSH-Desktop-Ubuntu/releases):
+`dsh-desktop-linux-amd64.deb` and `dsh-desktop-linux-x86_64.AppImage`. To build
+them yourself on Ubuntu 24.04+ (x64):
 
 ```bash
 npm ci
@@ -58,8 +61,9 @@ set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`.
 ## Download
 
 The stable and preview downloads below are the upstream macOS and Windows
-builds; Linux packages are built from source as described in
-[Ubuntu Linux port](#ubuntu-linux-port) above.
+builds; Linux packages come from this repository's
+[Releases](https://github.com/PeppaPig-114514/DSH-Desktop-Ubuntu/releases) or from
+the source build described in [Ubuntu Linux port](#ubuntu-linux-port) above.
 
 We offer stable and preview releases: download the **stable release**, recommended for everyday use, from our [official website](https://www.dshdesktop.com/#download). To try a **preview release**, choose a version marked **Pre-release** on [GitHub Releases](https://github.com/dataelement/dsh-desktop/releases).
 
