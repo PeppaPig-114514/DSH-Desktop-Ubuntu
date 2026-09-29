@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
-import { markLinuxPlatform } from '../src/preload/linux-window-chrome'
+import { markLinuxPlatform, mountLinuxWindowChrome } from '../src/preload/linux-window-chrome'
 
 async function readShortcutsClient(): Promise<string> {
   return readFile('node_modules/@deepseek-ai/dsh-client-shortcuts/lib/client.js', 'utf8')
@@ -101,4 +101,37 @@ it('marks and mounts only on Linux', async () => {
   expect(source).toContain('markLinuxPlatform(document)')
   expect(source).toContain('mountLinuxWindowChrome({ document, ipcRenderer })')
   expect(source.match(/process\.platform === 'linux'/g)).toHaveLength(2)
+})
+
+it('drops the right sidebar band below the caption so both sidebar buttons share one spot', () => {
+  const doc = document.implementation.createHTMLDocument()
+  mountLinuxWindowChrome({
+    document: doc,
+    ipcRenderer: {
+      invoke: async () => ({}),
+      on: () => undefined,
+      removeListener: () => undefined
+    }
+  })
+  const css = doc.getElementById('dsh-desktop-linux-window-chrome-style')?.textContent ?? ''
+  const numberIn = (source: string, property: string): number => {
+    const value = source.match(new RegExp(`${property}: (\\d+)px`))?.[1]
+    expect(value, property).toBeDefined()
+    return Number(value)
+  }
+  const controls = css.match(/#dsh-desktop-linux-window-controls \{[\s\S]*?\}/)?.[0] ?? ''
+  // The caption clearance must not reach the right sidebar's own band: that is
+  // what pushed its three actions to the left of the window controls.
+  expect(css).toContain('[data-window-drag]:not([data-dsh-sidebar-root] *):not([data-rightbar-col] *)')
+  const band = css.slice(css.indexOf('[data-rightbar-col] [data-window-drag]'))
+  expect(band.length).toBeGreaterThan(0)
+  // It starts below the controls' band and keeps their right inset, so the
+  // collapse button lands where upstream draws the collapsed sidebar's toggle.
+  expect(numberIn(band, 'padding-top')).toBeGreaterThanOrEqual(
+    numberIn(controls, 'top') + numberIn(controls, 'height')
+  )
+  expect(numberIn(band, 'padding-right')).toBe(numberIn(controls, 'right'))
+  // The band keeps a box over the caption it vacated, which has to stay a drag
+  // region: a frameless window has nothing else to move it by.
+  expect(band).toContain('height: auto !important')
 })
