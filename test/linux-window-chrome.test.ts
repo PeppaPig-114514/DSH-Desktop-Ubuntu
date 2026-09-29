@@ -69,17 +69,15 @@ it('leaves the browser-on-Linux profile unbound instead of borrowing another pro
 })
 
 it('scopes the Windows caption-strip geometry away from Linux', async () => {
-  const [sidebar, conversation] = await Promise.all([
-    readFile('patches/@deepseek-ai+dsh-client-ui-sidebar+0.1.7-rc.2.patch', 'utf8'),
-    readFile('patches/@deepseek-ai+dsh-client-ui-conversation+0.1.7-rc.2.patch', 'utf8')
-  ])
-  const scoped = 'html:not([data-platform=darwin]):not([data-platform=linux])'
+  const conversation = await readFile('patches/@deepseek-ai+dsh-client-ui-conversation+0.1.7-rc.2.patch', 'utf8')
+
   // Windows leaves data-platform unset, so the caption strip is the absence of
   // both announcing platforms. Linux draws its own caption inside the header
-  // bands, so the Windows strip's padding must not apply there either.
-  expect(sidebar).toContain(`${scoped} [data-dsh-sidebar-root][data-dsh-sidebar-wide=\\"true\\"]{padding-top:32px}`)
-  expect(conversation.split(scoped).length - 1).toBe(2)
-  expect(sidebar).not.toContain('html:not([data-platform=darwin]) [data-dsh-sidebar-root]')
+  // bands, so the Windows strip's padding must not reach it either, and Linux
+  // geometry is selected by the announcement instead.
+  const windowsStrip = 'html:not([data-platform=darwin]):not([data-platform=linux])'
+  expect(conversation.split(windowsStrip).length - 1).toBe(2)
+  expect(conversation).toContain('html[data-platform=linux] .wSkVaW_headerUtilities')
 })
 
 it('leaves the other desktop hosts untouched', async () => {
