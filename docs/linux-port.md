@@ -27,7 +27,9 @@ not fork the shared code. The reference implementation is the Windows (and
 macOS) build, so upstream work is merged rather than reimplemented.
 
 This branch was cut from upstream `v0.10.0` and then merged forward to the
-current `origin/v0.10.0`. The merge carried one fix that the port needed badly,
+current `upstream/v0.10.0`. `origin` is this Ubuntu port and `upstream` is
+`dataelement/dsh-desktop`, so the reference build is always pulled from
+`upstream`. The merge carried one fix that the port needed badly,
 upstream `85ca438` ("Avoid duplicate web import preload bridge"), which removed a
 second `contextBridge.exposeInMainWorld('dshWebImport', …)` call.
 
@@ -44,9 +46,9 @@ package offered no About anywhere and no phone button.
 Re-check what the reference has moved on to with:
 
 ```bash
-git fetch origin --tags
-git log --oneline <port-base>..origin/v0.10.0
-git merge origin/v0.10.0     # conflicts are usually the platform blocks below
+git fetch upstream --tags
+git log --oneline <port-base>..upstream/v0.10.0
+git merge upstream/v0.10.0   # conflicts are usually the platform blocks below
 ```
 
 ## Prerequisites
