@@ -16,6 +16,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-171513.svg" /></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-171513.svg" />
   <img alt="Windows" src="https://img.shields.io/badge/Windows-x64-171513.svg" />
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-x64%20(community%20port)-171513.svg" />
 </p>
 
 ![DSH Desktop overview with portable presets, model providers, phone control, and editable PPT generation](docs/images/dsh-desktop-hero-v021.png)
@@ -27,7 +28,38 @@ DSH Desktop packages the local DeepSeek Harness experience as an installed deskt
 > [!IMPORTANT]
 > DSH Desktop is an early preview built on the rapidly evolving `@deepseek-ai/dsh@0.1.7-rc.1`. macOS releases are code-signed and notarized by Apple. Windows x64 installers are code-signed; Windows security warnings may still decrease gradually as the publisher builds download and installation reputation.
 
+## Ubuntu Linux port
+
+This repository is the community Ubuntu port of DSH Desktop. It tracks
+`dataelement/dsh-desktop` (currently `v0.10.0`) and keeps the port's packaging and
+platform fixes as separate commits on top, so upstream merges stay possible; the
+reference implementation is still the macOS and Windows build. Here `upstream` is
+`dataelement/dsh-desktop` and `origin` is this port.
+
+Linux x64 covers daily use: the app starts the bundled Harness, draws its own
+window frame and controls, keeps running in the system tray when the window is
+closed, and injects the same desktop plugins as the other platforms. The gaps
+that remain — unbound in-app keyboard shortcuts, unsigned packages, and the few
+macOS/Windows-only plugins — are listed with their verification status in the
+[Linux port guide](docs/linux-port.md).
+
+Build and install from source on Ubuntu 24.04+ (x64):
+
+```bash
+npm ci
+npm run package:linux    # dist/dsh-desktop-linux-amd64.deb, dist/dsh-desktop-linux-x86_64.AppImage
+sudo dpkg -i dist/dsh-desktop-linux-amd64.deb
+```
+
+Both packages are unsigned, and the AppImage needs `chmod +x` first. Packaging
+downloads the Electron runtime; if that step stalls on a slow GitHub connection,
+set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`.
+
 ## Download
+
+The stable and preview downloads below are the upstream macOS and Windows
+builds; Linux packages are built from source as described in
+[Ubuntu Linux port](#ubuntu-linux-port) above.
 
 We offer stable and preview releases: download the **stable release**, recommended for everyday use, from our [official website](https://www.dshdesktop.com/#download). To try a **preview release**, choose a version marked **Pre-release** on [GitHub Releases](https://github.com/dataelement/dsh-desktop/releases).
 
