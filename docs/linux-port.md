@@ -20,36 +20,25 @@ tracked patch layer.
 | Chromium sandbox | Debian `postinst` restores the SUID `chrome-sandbox` helper and installs an AppArmor `userns` profile; `postrm` removes the profile; the AppImage launcher falls back to `--no-sandbox` |
 | Target verification | `scripts/verify-target.mjs` already validates `linux/x64` and the bundled Node.js runtime; no change was needed |
 
-## Tracking the upstream build
+## Keeping the platform layer reviewable
 
 The port adds packaging and platform fixes on top of the upstream tree; it does
-not fork the shared code. The reference implementation is the Windows (and
-macOS) build, so upstream work is merged rather than reimplemented.
+not fork the shared code. The reference implementation is the macOS and Windows
+build, so shared behaviour follows upstream and a change here should stay inside
+the platform seams this guide lists.
 
-This branch was cut from upstream `v0.10.0` and then merged forward to the
-current `upstream/v0.10.0`. `origin` is this Ubuntu port and `upstream` is
-`dataelement/dsh-desktop`, so the reference build is always pulled from
-`upstream`. The merge carried one fix that the port needed badly,
-upstream `85ca438` ("Avoid duplicate web import preload bridge"), which removed a
-second `contextBridge.exposeInMainWorld('dshWebImport', …)` call.
+| Seam | Where |
+| --- | --- |
+| Packaging | `package.json` (`linux`, `deb`, `appImage`), `build/linux-*.sh`, `build/dsh-desktop.apparmor`, `build/icons/` |
+| Window frame, controls, and drag bands | `src/preload/linux-window-chrome.ts`, the Linux branch in `src/preload/index.ts` |
+| Tray and platform announcement | `src/main/close-to-tray.ts`, `src/main/index.ts` |
+| Bundled frontend plugin behaviour | `patches/@deepseek-ai+*` |
 
-`contextBridge` throws `Cannot bind an API on top of an existing property on the
-window object` on the second exposure of the same key, and nothing in the preload
-catches it. The duplicate sat at module scope, so every statement after it was
-unreachable: `initializeUi()` and with it the About overlay, the Connect Phone
-button, the Safe Mode banner, the boot-failure overlay, the update banner, and
-the `updates:status-changed` / `desktop:show-about` listeners. The window still
-painted the Harness UI, so the build looked healthy while the whole
-preload-injected desktop layer was dead — which is why the shipped `0.1.1`
-package offered no About anywhere and no phone button.
-
-Re-check what the reference has moved on to with:
-
-```bash
-git fetch upstream --tags
-git log --oneline <port-base>..upstream/v0.10.0
-git merge upstream/v0.10.0   # conflicts are usually the platform blocks below
-```
+`patches/` also has to stay replayable: edit the installed package, regenerate
+the patch with `npx patch-package <package>`, then confirm that a clean `npm ci`
+applies every patch without errors. Every seam above has a regression test in
+`test/linux-*.test.ts` plus the measurements in
+[Verifying a Linux build](#verifying-a-linux-build).
 
 ## Prerequisites
 
@@ -122,9 +111,8 @@ npm run package:linux:local
 sudo apt install ./dist/dsh-desktop-linux-amd64.deb
 ```
 
-`package:linux:local` only adds a build stamp to the package it produces; the
-release workflow sets the version from its tag and calls `package:linux`, so
-released packages keep the plain tag version.
+`package:linux:local` only adds a build stamp to the package it produces, so a
+release build, which calls `package:linux` with the tag version, stays unaffected.
 
 The AppImage is portable but unsigned and runs without the Chromium sandbox:
 
@@ -524,9 +512,27 @@ The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
   installed path substituted, including the space in `/opt/DSH Desktop`.
 
 `npm run typecheck`, `npm run build`, and `npm test` are re-run on the same host
-with the tray change in place (1544 passed, 4 skipped, 0 failures). Three things
-the test suite cannot reach need a running app, and they were read back from a
-development instance started with:
+with the tray change in place (1337 passed, 2 skipped, 0 failures). The platform
+seams were also read back from the unpacked build and from a running development
+instance:
+
+- Linux announces itself (`data-platform=linux`), injects the three window
+  controls and three drag bands, and the caption CSS moves the session actions
+  to `absolute`/`50px` beside the Conversation/Trajectory tabs.
+- Hovering a width handle without pressing a button writes
+  `--dsh-width-handle-pointer-y` at the cursor (412px for a cursor 412px below
+  the handle's top edge) — it stayed unset before the fix — and paints the 2px
+  reveal line at `x=418..419`, centred on the cursor's row (`y=488`). The whole
+  frame differs from the idle capture by 262 pixels.
+- The settings panel's About entry returns `{ ok: true }` from the
+  `desktop-menu:execute` channel and opens the overlay (`display: none` to
+  `flex`, 900px tall).
+- Closing the main window hides it instead of destroying it (`isVisible()` goes
+  `true` to `false`, `isDestroyed()` stays `false`) and the process keeps
+  running with the tray icon it created.
+
+Three things the test suite cannot reach need a running app, and they were read
+back from a development instance started with:
 
 ```bash
 XDG_CONFIG_HOME=/tmp/dsh-linux-check \
@@ -538,8 +544,8 @@ XDG_CONFIG_HOME=/tmp/dsh-linux-check \
   the preload-injected roots `dsh-desktop-about-root`, `dsh-desktop-update-root`
   and `dsh-desktop-mobile-button` appear once `initializeUi()` has run. Copying
   the built `out/preload/index.cjs`, re-adding the duplicate `dshWebImport`
-  exposure, and reloading the page removes all three — the failure the shipped
-  `0.1.1` package had. The phone button is injected from the DOM observer, so it
+  exposure, and reloading the page removes all three — that is the failure an
+  early Linux build hit. The phone button is injected from the DOM observer, so it
   follows an animation frame and stays absent while the window is hidden.
 - **The menu and its replacement.** `http://127.0.0.1:9333/json` exposes the main
   process. The main bundle is ESM, so `Menu` is reached through
