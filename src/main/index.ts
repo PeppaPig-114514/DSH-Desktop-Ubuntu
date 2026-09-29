@@ -156,6 +156,7 @@ import { resolveHarnessLocale } from './application-locale'
 import { installContextMenu } from './context-menu'
 import {
   WINDOWS_TITLEBAR_HEIGHT,
+  isDesktopMenuCommand,
   isZoomMenuCommand,
   type DesktopMenuCommand
 } from '../shared/desktop-menu'
@@ -3417,6 +3418,20 @@ async function bootstrap(): Promise<void> {
     const errorMessage = await shell.openPath(path)
     if (errorMessage) throw new Error(errorMessage)
     return { ok: true }
+  })
+  // macOS runs these commands from the application menu and Windows from its
+  // caption menu; both call the executor directly. Linux installs no menu and
+  // offers the commands in the settings panel header instead, so the renderer
+  // needs an IPC entry point in front of the same executor and the same shared
+  // validation.
+  ipcMain.removeHandler('desktop-menu:execute')
+  ipcMain.handle('desktop-menu:execute', async (event, command: unknown) => {
+    assertTrustedMainWindowEvent(event)
+    if (!isDesktopMenuCommand(command)) {
+      throw new Error('Unknown DSH Desktop menu command.')
+    }
+    const zoomFactor = await executeDesktopMenuCommand(command)
+    return zoomFactor === undefined ? { ok: true } : { ok: true, zoomFactor }
   })
   ipcMain.removeHandler('harness:renderer-healthy')
   ipcMain.handle('harness:renderer-healthy', (event) => {
