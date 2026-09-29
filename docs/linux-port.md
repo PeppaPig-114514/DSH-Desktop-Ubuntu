@@ -357,7 +357,7 @@ false` for that platform only — and draws the controls itself:
 | Source | `src/preload/linux-window-chrome.ts`, mounted on every page of the window — including recovery and Safe Mode, where no Harness slot exists to host them |
 | IPC | `desktop-window:minimize`, `:toggle-maximize`, `:close`, `:get-state`, plus a pushed `:state-changed` so the icon follows a double-click or the window manager |
 | Drag | the bands upstream marks `data-window-drag` (the conversation header, the sidebar's logo row and the plugin-manager headers); their interactive elements are switched back to `no-drag` |
-| Room | only the bands the controls can reach reserve `BAND_CLEARANCE` on their right, so a page's own header actions cannot end up under the controls. The sidebar's row is excluded: it sits at the opposite edge, and padding it squeezed the brand lockup and pulled its collapse button across the column |
+| Room | only the bands the controls can reach reserve `BAND_CLEARANCE` on their right, so a page's own header actions cannot end up under the controls. Two bands are excluded: the sidebar's logo row, which sits at the opposite edge and whose padding squeezed the brand lockup and pulled its collapse button across the column, and the right sidebar's own band, which leaves the caption row entirely (below) |
 
 The session actions that used to share the title row — open in file manager, the
 ⋯ menu and the right-sidebar toggle — move down to the tab row, which is the one
@@ -365,7 +365,18 @@ change this makes to upstream's own layout: the conversation patch adds Linux-on
 rules pinning `.wSkVaW_headerUtilities` and `.wSkVaW_headerCorner` beside the
 Conversation/Trajectory tabs.
 
-Two consequences are worth knowing before touching this. Dropping the titlebar
+The right sidebar's own band is the second one that leaves the caption. Upstream
+draws its tabs and its split/fullscreen/collapse actions on the caption row — one
+row above the toggle that opens the sidebar — so those three actions sat against
+the window controls and read as part of them. That band now starts below the
+caption and keeps the controls' own right inset, which puts its collapse button in
+the exact box upstream's collapsed toggle uses: `1340,50 → 1368,78` in a 1380×900
+window, `1880,50 → 1908,78` maximized, identical in both sidebar states. It keeps
+its box over the caption it vacated, because that strip still has to be a drag
+region.
+
+Two consequences are worth knowing before touching this.
+ Dropping the titlebar
 also drops the window manager's own dragging (hence the drag bands) and its
 double-click-to-maximize (hence the `dblclick` handler, which the Windows overlay
 gets from the OS). And `frame: false` is scoped to Linux: Windows and macOS keep
@@ -489,7 +500,7 @@ The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
   installed path substituted, including the space in `/opt/DSH Desktop`.
 
 `npm run typecheck`, `npm run build`, and `npm test` are re-run on the same host
-with the tray change in place (1541 passed, 4 skipped, 0 failures). Three things
+with the tray change in place (1542 passed, 4 skipped, 0 failures). Three things
 the test suite cannot reach need a running app, and they were read back from a
 development instance started with:
 
@@ -528,6 +539,16 @@ XDG_CONFIG_HOME=/tmp/dsh-linux-check \
   process. Checked separately: a *page-side* `window.close()` still ends the app,
   because Electron 43 destroys that window without emitting its `close` event —
   hence the close button, not a script, is the path this behavior covers.
+- **The caption's own layout.** Read back from the renderer: the controls are a
+  fixed 100×32 box at `top: 8px, right: 12px`, and the right sidebar's band now
+  starts below them — its split/fullscreen/collapse actions measured
+  `1268,50 → 1368,78` against controls at `1268,8 → 1368,40` in a 1380×900 window,
+  and `1880,50 → 1908,78` against `1808,8 → 1908,40` when maximized. With the
+  sidebar closed, upstream's own toggle occupies exactly the collapse button's box
+  in both geometries, so opening and closing the sidebar is one button position.
+  Real input (`Input.dispatchMouseEvent`, not `element.click()`, which skips
+  hit-testing) on the maximize button still maximizes and restores the window with
+  the sidebar open — the band's drag box behind the controls does not swallow them.
 
 `test/linux-desktop-menu.test.ts` keeps the Linux side of that arrangement from
 being dropped again, as a source contract over `installMenu` and the settings

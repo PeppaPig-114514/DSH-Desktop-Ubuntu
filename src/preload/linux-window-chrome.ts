@@ -27,6 +27,13 @@
  * `data-window-drag` reserve room for them on their right edge. Those bands are
  * also the drag region — a frameless window has to be movable by something, and
  * their interactive elements are switched back to `no-drag`.
+ *
+ * The right sidebar's own band is the exception: it drops below the caption
+ * instead of reserving room in it. Upstream draws that band — the sidebar tabs
+ * and the split/fullscreen/collapse actions — on the caption row, which left its
+ * collapse button wedged against the window controls as if it belonged to them,
+ * while the same sidebar collapsed shows its toggle one row lower. Both states
+ * now use that lower row, so opening and closing the sidebar stay in one place.
  */
 
 const STYLE_ID = 'dsh-desktop-linux-window-chrome-style'
@@ -40,6 +47,15 @@ const CONTROLS_TOP = 8
 const CONTROLS_RIGHT = 12
 /** Right padding a drag band keeps so its own content cannot run under the controls. */
 const BAND_CLEARANCE = CONTROLS_WIDTH + CONTROLS_RIGHT + 8
+/**
+ * Top padding of the right sidebar's own band, which moves its tabs and actions
+ * to the row below the caption. The band's buttons sit at the top of its content
+ * box and upstream's collapsed-sidebar toggle is anchored to that same row, so
+ * this is also the buttons' top edge: it lines up with the toggle, and the value
+ * is measured against it in the running app rather than derived from the
+ * sidebar's own padding.
+ */
+const SIDEBAR_BAND_TOP = CONTROLS_TOP + CONTROLS_HEIGHT + 10
 
 const COPY = {
   zh: {
@@ -178,8 +194,21 @@ function installStyle(doc: Document): void {
       -webkit-app-region: drag;
       box-sizing: border-box;
     }
-    [data-window-drag]:not([data-dsh-sidebar-root] *) {
+    [data-window-drag]:not([data-dsh-sidebar-root] *):not([data-rightbar-col] *) {
       padding-right: ${BAND_CLEARANCE}px !important;
+    }
+    /* The right sidebar's band leaves the caption row instead of reserving room
+       in it: upstream draws the sidebar's tabs and its split/fullscreen/collapse
+       actions on that row, which parked the collapse button against the window
+       controls while the collapsed sidebar's toggle sat one row lower. Dropping
+       the band to that row puts both buttons in one place; leaving the band's
+       height to its content keeps its box over the caption it vacated, which
+       stays draggable. The right padding is the controls' own inset so the last
+       button lines up with them. */
+    [data-rightbar-col] [data-window-drag] {
+      height: auto !important;
+      padding-top: ${SIDEBAR_BAND_TOP}px !important;
+      padding-right: ${CONTROLS_RIGHT}px !important;
     }
     [data-window-drag] button,
     [data-window-drag] a,
