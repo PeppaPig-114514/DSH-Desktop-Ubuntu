@@ -312,6 +312,30 @@ implementing the native keyboard bridge and letting Linux resolve
 `runtime: desktop` against the `desktop:linux` defaults upstream already ships —
 a deliberate piece of work, not a one-line patch.
 
+One interaction in this graph was repaired rather than re-scoped. The strip that
+resizes the conversation column reveals a 2px `::after` line whose gradient is
+placed by `--dsh-width-handle-pointer-y`, and upstream's `onPointerMove` writes
+that variable only once a drag is live — the `if (!dragging.current) return;`
+guard sits above the write. A hover therefore keeps the CSS fallback value, and
+because hovering only flips the line's `opacity`, nothing reaches the screen until
+another event forces a repaint; the first drag does, and it also raises
+`z-index` from `0` to `8`. Measured in a running window: with upstream code,
+hovering the strip reports `opacity: 1` and a valid
+`linear-gradient(... calc(50% - 36px) ...)`, yet no line appears — the pixel diff
+between hovering and moving away is `0`, and the same capture shows a bare
+background. Writing the variable on every pointermove, hover included, fixes both
+halves: the same measurement then finds the line under the cursor (`2083` changed
+pixels, unchanged after 1.5s, 3 of 3 runs), and a 60px drag still moved the column
+from `924px` to `764px`.
+
+That change lives in
+`patches/@deepseek-ai+dsh-client-ui-conversation+0.1.7-rc.2.patch` beside the Linux
+header geometry, because the defect is upstream rather than Linux-specific — the
+Windows build has it too — and `npm ci` replays it.
+`test/conversation-width-handle-hover.test.ts` runs the pointermove handler that
+ships in the installed package, so the regression returns if the patch stops being
+applied.
+
 ## The desktop menu
 
 Windows keeps its menu in a custom caption strip and hides the native menu bar
@@ -500,7 +524,7 @@ The port was verified on Ubuntu 26.04 x64 (kernel 7.0, NVIDIA RTX 4070 Ti):
   installed path substituted, including the space in `/opt/DSH Desktop`.
 
 `npm run typecheck`, `npm run build`, and `npm test` are re-run on the same host
-with the tray change in place (1542 passed, 4 skipped, 0 failures). Three things
+with the tray change in place (1544 passed, 4 skipped, 0 failures). Three things
 the test suite cannot reach need a running app, and they were read back from a
 development instance started with:
 
