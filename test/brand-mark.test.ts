@@ -2,10 +2,11 @@ import { expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 
 const PRIMITIVES = 'node_modules/@deepseek-ai/dsh-client-ui-primitives/lib/index.js'
-const UI_SEATS = [
-  'packages/dsh-desktop-client-ui/client.js',
-  'packages/dsh-desktop-onboarding/client.js'
-]
+/**
+ * The desktop UI bundles that render a brand mark. The onboarding bundle this
+ * list used to carry no longer ships, so the list follows the tree.
+ */
+const UI_SEATS = ['packages/dsh-desktop-client-ui/client.js']
 
 /**
  * The geometry Harness itself renders, read from the primitive the UI imports.
@@ -30,8 +31,8 @@ it('leaves no copy of the retired window mark in the desktop UI', async () => {
   for (const file of UI_SEATS) {
     const source = await readFile(file, 'utf8')
     // The retired DSH Desktop mark was a whale drawn as a window with a tail;
-    // its path data began here. Two seats cannot share a brand slot, so both
-    // seats now render the shared primitive instead of a private copy.
+    // its path data began here. The seat renders the shared primitive instead
+    // of a private copy.
     expect(source, file).not.toContain('M478.318')
     expect(source, file).not.toContain('BRAND_MARK_PATH')
     expect(source, file).toContain('FishLogo')
